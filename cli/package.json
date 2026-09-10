@@ -1,0 +1,50 @@
+{
+  "name": "agent-commit",
+  "version": "0.1.0",
+  "description": "Reader and query tool for agent-commit formatted git history",
+  "type": "module",
+  "bin": {
+    "agent-commit": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AngelCodes95/agent-commit.git"
+  },
+  "homepage": "https://github.com/AngelCodes95/agent-commit#readme",
+  "bugs": {
+    "url": "https://github.com/AngelCodes95/agent-commit/issues"
+  },
+  "author": "Angel Vazquez",
+  "keywords": [
+    "git",
+    "commit",
+    "cli",
+    "agent",
+    "trailer"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sync-docs": "node scripts/sync-agents-block.mjs",
+    "sync-docs:check": "node scripts/sync-agents-block.mjs --check",
+    "prepublishOnly": "npm run sync-docs:check && npm run build && npm test"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

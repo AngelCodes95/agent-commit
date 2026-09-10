@@ -1,0 +1,93 @@
+name: test
+
+# Gating, unlike agent-commit-check.yml. A failing test here should block a
+# PR from merging.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # This matrix verifies the dev/test toolchain, not the published
+        # package's own floor (see node-18-smoke-test below for that): 20
+        # and 22 are both currently LTS (checked against endoflife.date at
+        # the time of writing), 24 is current active LTS. Node 18 is
+        # deliberately excluded here, not an oversight: vitest 4 itself
+        # requires Node ^20 || ^22 || >=24 (its own package.json engines
+        # field), so `npm test` cannot run on 18 at all, confirmed directly
+        # (a real Node 18 run fails inside vitest's own dependency chain
+        # before a single test executes, unrelated to this project's code).
+        # Keep this list current when Node's LTS lineup moves on, this
+        # comment is a claim about a point in time, not a standing
+        # guarantee.
+        node-version: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install, build, and test the CLI
+        working-directory: cli
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+  node-18-smoke-test:
+    # package.json's engines field promises >=18, but the dev toolchain
+    # (vitest, see above) can't run on 18 to prove that promise via the
+    # normal test job. This verifies the actual published artifact instead
+    # of the toolchain: build with a newer Node (tsc itself only requires
+    # >=14.17, no such restriction), then switch to Node 18 and run the
+    # compiled CLI directly, end to end against a real git repo, the same
+    # way a real Node-18 user actually would.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and build
+        working-directory: cli
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Run the compiled CLI end to end under Node 18
+        working-directory: cli
+        run: |
+          node dist/index.js --version
+          node dist/index.js --help
+          mkdir -p /tmp/node18-smoke-repo
+          cd /tmp/node18-smoke-repo
+          git init -q -b main
+          git config user.email smoke@example.com
+          git config user.name smoke
+          printf 'test: node 18 smoke test\n\nAgent-Context: {"why":"confirming the published packages >=18 floor works, not just the dev toolchain"}\n' | git commit -q --allow-empty -F -
+          node "$GITHUB_WORKSPACE/cli/dist/index.js" log
+          node "$GITHUB_WORKSPACE/cli/dist/index.js" check
+
+  docs-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Confirm README.md and cli/src/agentsBlock.ts match AGENTS.md
+        working-directory: cli
+        run: npm run sync-docs:check

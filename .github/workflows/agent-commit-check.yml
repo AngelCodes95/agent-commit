@@ -1,0 +1,34 @@
+name: agent-commit check
+
+# Advisory only. Reports whether the commit that just landed on main has an
+# Agent-Context trailer; never fails the build over it. See SPEC.md, "Squash
+# merges: the merge commit must carry its own trailer" for why this exists.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # This repo isn't published to npm yet, so the workflow builds the CLI
+      # from source. An adopting repo using the published package would
+      # instead run: npx agent-commit@latest check
+      - name: Build agent-commit CLI from source
+        working-directory: cli
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check for an Agent-Context trailer on the latest commit
+        working-directory: cli
+        continue-on-error: true
+        run: node dist/index.js check
