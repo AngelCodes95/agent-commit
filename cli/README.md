@@ -20,18 +20,14 @@ npm install -g agent-commit
 
 Or run it without installing: `npx agent-commit <command>`.
 
-A bare `npm install git+https://...` won't work, since this package lives
-in a subdirectory (`cli/`), not the repository root. The fix is a
-`#<ref>?subdirectory=cli` suffix on the URL:
-
-```
-npm install git+https://github.com/AngelCodes95/agent-commit.git#main?subdirectory=cli
-```
-
-That's real, general npm behavior for a repo shaped like this one, though
-it hasn't been tested against this specific URL yet, there's no live
-GitHub remote to test against until this repo is pushed. When in doubt,
-use the registry install above instead.
+Installing directly from the git repository (`npm install
+git+https://github.com/AngelCodes95/agent-commit.git`) does not currently
+work and isn't recommended: this package lives in a subdirectory (`cli/`),
+not the repository root, and npm's subdirectory-install support
+(`gitSubdir`) only just landed in `pacote` and isn't in most installed npm
+versions yet; on top of that, current npm disables git-type installs by
+default entirely (`EALLOWGIT`). Verified directly against the real,
+pushed URL, not assumed. Use the registry install above.
 
 ## Commands
 

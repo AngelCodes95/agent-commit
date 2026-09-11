@@ -137,15 +137,21 @@ version).
   since `package.json` lives at `cli/`, not the repo root; npm's git
   installer expects it at the root and fails before `prepare` ever runs
   (confirmed directly: `npm error enoent Could not read package.json`).
-  The documented workaround for a git dependency whose package lives in a
-  subdirectory is a `#<ref>?subdirectory=cli` suffix on the git URL; this
-  is real, general npm behavior, not specific to this repo, but it is
-  resolved per-host (GitHub, GitLab, etc.) rather than generically, so it
-  could not be verified end-to-end here against a `file://` transport, and
-  hasn't yet been verified against a live GitHub URL since this repo isn't
-  pushed yet. The registry install path (`npm install -g agent-commit`,
-  `npx agent-commit`) is unaffected by any of this: `npm publish` runs
-  from inside `cli/`, publishing just that package, and was verified
+  A previous version of this entry claimed a `#<ref>?subdirectory=cli`
+  suffix was the documented workaround; that was wrong, not just
+  unverified, and the correction is worth recording plainly rather than
+  quietly editing away: `subdirectory` was never a real npm query
+  parameter. The actual mechanism (`gitSubdir`, syntax
+  `#<ref>::path:<dir>`) only just landed in `pacote` (merged into pacote
+  as of this writing, not yet in the npm version this was tested with,
+  `10.9.2`; confirmed the older syntax fails identically against the real
+  pushed GitHub URL, not just over `file://` as first assumed), and even
+  the newest available npm at the time of testing (`12.0.2`) disables git
+  installs entirely by default (`EALLOWGIT`). Given all of that, a
+  git-URL install of this package is **not currently a recommended path**
+  on any commonly-installed npm version; the registry install (`npm
+  install -g agent-commit`, `npx agent-commit`) is unaffected by any of
+  this and is the supported way to get the CLI. It was verified
   end-to-end via a real `npm pack` + clean install in an isolated
   directory.
 - The published npm package was missing `LICENSE` and a registry
