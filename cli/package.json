@@ -4,7 +4,7 @@
   "description": "Reader and query tool for agent-commit formatted git history",
   "type": "module",
   "bin": {
-    "agent-commit": "./dist/index.js"
+    "agent-commit": "dist/index.js"
   },
   "main": "./dist/index.js",
   "files": [
