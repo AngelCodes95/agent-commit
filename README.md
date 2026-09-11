@@ -1,12 +1,16 @@
 # agent-commit
 
+[![npm version](https://img.shields.io/npm/v/agent-commit.svg)](https://www.npmjs.com/package/agent-commit)
+[![test](https://github.com/AngelCodes95/agent-commit/actions/workflows/test.yml/badge.svg)](https://github.com/AngelCodes95/agent-commit/actions/workflows/test.yml)
+[![license](https://img.shields.io/npm/l/agent-commit.svg)](./LICENSE)
+
 ![agent-commit: the 5 Ws, commits written by agents, for agents.](./agent-commit-diagram.png)
 
 A git commit convention for preserving the context agents need to understand software history.
 
 One line of human-readable summary, for you, if you're glancing. Everything after it is written the way an agent actually wants to read it.
 
-Status: the format is stable and works today with plain git, no tool required to read it back (see `SPEC.md`). The CLI (`cli/`) is pre-1.0 and not yet published to npm, but is fully working: filtering, querying, and a setup command, backed by a real test suite, see "What the CLI does today" below. The one thing genuinely not built is meaning-based search, see "What's not built."
+Status: the format is stable and works today with plain git, no tool required to read it back (see `SPEC.md`). The CLI (`cli/`) is published to npm (`npm install -g agent-commit`, or `npx agent-commit`) and fully working: filtering, querying, and a setup command, backed by a real test suite, see "What the CLI does today" below. The one thing genuinely not built is meaning-based search, see "What's not built."
 
 ## The problem
 
@@ -52,7 +56,7 @@ Prose is exactly what agents already do for free, and it's genuinely fine for a 
 
 ## What the CLI does today
 
-Reading a single repo's history back already works today with plain git, no tool required (see `SPEC.md`, "Reading it back"). The CLI in this repo (`cli/`, not yet published) adds structured filtering on top: `agent-commit log --breaking`, `--grep` (case-insensitive substring match against `why`), `--refs` (exact match against an entry in `refs`, so it's only as reliable as the canonical form guidance in `SPEC.md`; a repo that mixes `INFRA-441` and `#441` for the same ticket will find neither with a query for the other, silently, no error), `--since`/`--until`, `agent-commit show <ref>` for a single commit, both with a pretty-printed default view and a `--json` mode for machine consumption. No `--type` filter, on purpose, `type` isn't a field this format uses (see SPEC.md). `agent-commit check` reports, read-only, whether recent commits on the current branch have a usable `Agent-Context` trailer, distinguishing a trailer that was never written from one that exists in the message but wasn't recognized as a trailer (`MISPLACED`, see SPEC.md's squash-merge section for why that happens), useful right after a squash-merge to confirm the merge commit actually got one. `agent-commit merge-draft <range>` deterministically unions a branch's `touches`/`refs`/`breaking` and lists per-commit `why` candidates for a squash-merge trailer. `agent-commit init` writes the `AGENTS.md` block (see "How to use it" below) instead of an agent hand-transcribing it. `agent-commit --version` prints the installed version. None of this requires publishing to actually try: `cd cli && npm install && npm run build && node dist/index.js log`.
+Reading a single repo's history back already works today with plain git, no tool required (see `SPEC.md`, "Reading it back"). The CLI in this repo (`cli/`, published to npm) adds structured filtering on top: `agent-commit log --breaking`, `--grep` (case-insensitive substring match against `why`), `--refs` (exact match against an entry in `refs`, so it's only as reliable as the canonical form guidance in `SPEC.md`; a repo that mixes `INFRA-441` and `#441` for the same ticket will find neither with a query for the other, silently, no error), `--since`/`--until`, `agent-commit show <ref>` for a single commit, both with a pretty-printed default view and a `--json` mode for machine consumption. No `--type` filter, on purpose, `type` isn't a field this format uses (see SPEC.md). `agent-commit check` reports, read-only, whether recent commits on the current branch have a usable `Agent-Context` trailer, distinguishing a trailer that was never written from one that exists in the message but wasn't recognized as a trailer (`MISPLACED`, see SPEC.md's squash-merge section for why that happens), useful right after a squash-merge to confirm the merge commit actually got one. `agent-commit merge-draft <range>` deterministically unions a branch's `touches`/`refs`/`breaking` and lists per-commit `why` candidates for a squash-merge trailer. `agent-commit init` writes the `AGENTS.md` block (see "How to use it" below) instead of an agent hand-transcribing it. `agent-commit --version` prints the installed version. Try it now with no install: `npx agent-commit log`. Building from source instead: `cd cli && npm install && npm run build && node dist/index.js log`.
 
 ## What's not built
 
@@ -195,7 +199,7 @@ If you're using Gemini CLI: it reads its own `GEMINI.md` rather than `AGENTS.md`
 
 ## Try it
 
-Add the block above to this repo's `AGENTS.md`, or wherever your agent already looks, then tell it to "agent-commit" your next change. That's the entire setup: nothing to install, nothing to configure, no dependency this repo doesn't already have. The full spec is in [`SPEC.md`](./SPEC.md); the CLI for querying history back out lives in [`cli/`](./cli), and doesn't require publishing to try, see "What the CLI does today" above.
+Add the block above to this repo's `AGENTS.md`, or wherever your agent already looks, then tell it to "agent-commit" your next change. That's the entire setup: nothing to install, nothing to configure, no dependency this repo doesn't already have. The full spec is in [`SPEC.md`](./SPEC.md); the CLI for querying history back out is `npx agent-commit`, or `cd cli` in this repo to build it from source, see "What the CLI does today" above.
 
 ## License
 
