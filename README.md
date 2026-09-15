@@ -14,7 +14,7 @@ Status: the format is stable and works today with plain git, no tool required to
 
 ## The problem
 
-An agent staring at one confusing line runs `git blame`, lands on the commit that wrote it, and needs to know why, right then, not by reading the five commits around it for context. Today that commit's message is the only clue, and when it doesn't say, the agent is guessing, or re-deriving the reasoning from a diff that only shows what changed, never why. That guess doesn't get cheaper with repetition: two agents (or the same one twice) can land on the identical commit and walk away with different conclusions about it.
+An agent staring at one confusing line runs `git blame`, lands on the commit that wrote it, and needs to know why, right then, not by reading the five commits around it for context. Today that commit's message is the only clue: the context the agent that wrote it had on hand at the time, often lost or compacted away by the time anyone looks again. When the message doesn't carry it, the agent is guessing, or re-deriving that context from a diff that only shows what changed, never why. That guess doesn't get cheaper with repetition: two agents (or the same one twice) can land on the identical commit and walk away with different conclusions about it.
 
 That one-commit, blame-time lookup is the case agent-commit is actually built for. The broader case, an agent reconstructing intent across a longer stretch of history, benefits too, but it's the secondary win, not the reason this exists.
 
