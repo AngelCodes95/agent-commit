@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { formatJson, formatPretty, formatPrettyList, sanitizeForTerminal } from "../src/format.js";
-import { record } from "./fixtures/record.js";
+import { FAKE_SHORT_HASH, record } from "./fixtures/record.js";
 
 describe("formatPretty", () => {
-  it("prints just the subject when there's no trailer", () => {
+  it("prints just the short hash and subject when there's no trailer", () => {
     const out = formatPretty(record({ subject: "chore: bump dependency" }));
-    expect(out).toBe("chore: bump dependency");
+    expect(out).toBe(`${FAKE_SHORT_HASH} chore: bump dependency`);
   });
 
   it("prints common fields in the documented order, not object insertion order", () => {
@@ -18,7 +18,7 @@ describe("formatPretty", () => {
       }),
     );
     const lines = out.split("\n");
-    expect(lines[0]).toBe("fix: retry backoff");
+    expect(lines[0]).toBe(`${FAKE_SHORT_HASH} fix: retry backoff`);
     expect(lines[1]).toBe("  why: added exponential backoff");
     expect(lines[2]).toBe("  breaking: false");
   });
@@ -67,7 +67,7 @@ describe("formatPretty", () => {
 
   it("renders valid-but-non-object JSON (a bare string) without crashing or mislabeling it", () => {
     const out = formatPretty(record({ subject: "fix: odd", context: "just a string" }));
-    expect(out).toBe("fix: odd\n  just a string");
+    expect(out).toBe(`${FAKE_SHORT_HASH} fix: odd\n  just a string`);
   });
 
   it("neutralizes a right-to-left override in a why value instead of applying it to the terminal", () => {
@@ -118,10 +118,10 @@ describe("formatPretty", () => {
 describe("formatPrettyList", () => {
   it("joins multiple records with a blank line between them", () => {
     const out = formatPrettyList([
-      record({ subject: "first" }),
-      record({ subject: "second", context: { why: "reason" } }),
+      record({ shortHash: "aaaaaaa", subject: "first" }),
+      record({ shortHash: "bbbbbbb", subject: "second", context: { why: "reason" } }),
     ]);
-    expect(out).toBe("first\n\nsecond\n  why: reason");
+    expect(out).toBe("aaaaaaa first\n\nbbbbbbb second\n  why: reason");
   });
 
   it("returns an empty string for an empty list, not a stray separator", () => {

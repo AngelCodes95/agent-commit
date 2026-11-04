@@ -115,12 +115,16 @@ function formatContextFields(context: Record<string, unknown>): string[] {
 }
 
 /**
- * Renders one record as human-readable text. Field order favors SPEC.md's
+ * Renders one record as human-readable text: short hash and subject, then
+ * the trailer's fields. Field order favors SPEC.md's
  * common fields but never drops an unrecognized key, the format has no
  * required schema, so the renderer can't assume one either.
  */
 export function formatPretty(record: AgentCommitRecord): string {
-  const lines = [sanitizeForTerminal(record.subject)];
+  // Hash first, `git log --oneline` style, so every result can be handed
+  // straight to `git show` or `agent-commit show`. Hashes are git's own
+  // hex output, never commit content, so they need no sanitizing.
+  const lines = [`${record.shortHash} ${sanitizeForTerminal(record.subject)}`];
 
   if (record.malformed) {
     lines.push("  (malformed Agent-Context trailer, could not parse as JSON)");

@@ -12,8 +12,8 @@ import type { AgentCommitRecord, ParseResult, ParseWarning } from "./types.js";
  */
 export const FIELD_SEP = "\0";
 /**
- * Fields emitted per commit by LOG_FORMAT, in order: trailer extraction,
- * raw body. Records are parsed
+ * Fields emitted per commit by LOG_FORMAT, in order: full hash,
+ * abbreviated hash, trailer extraction, raw body. Records are parsed
  * positionally, LOG_FORMAT_FIELD_COUNT fields at a time, rather than split
  * on a multi-byte record boundary: any field can legitimately be empty (no
  * trailer, or a commit made with --allow-empty-message), and two adjacent
@@ -21,16 +21,19 @@ export const FIELD_SEP = "\0";
  * is exactly how an empty-message commit used to swallow the record next
  * to it.
  */
-export const LOG_FORMAT_FIELD_COUNT = 2;
+export const LOG_FORMAT_FIELD_COUNT = 4;
 /**
  * Internal to the CLI, deliberately richer than the plain-git example in
  * SPEC.md's "Reading it back" section. That example stays a minimal
  * two-field command anyone can run with no tool; this format adds the
- * raw commit body (so the CLI can detect a trailer that's present in the
- * message but sitting outside git's recognized trailer block, see the
- * MISPLACED detection in parseLog below). The subject is derived from the
- * body's first line rather than fetched separately, one fewer field that
- * could disagree with itself.
+ * commit hash (so every result can be acted on: `git show`, `blame`,
+ * `agent-commit show`) and the raw commit body (so the CLI can detect a
+ * trailer that's present in the message but sitting outside git's
+ * recognized trailer block, see the MISPLACED detection in parseLog
+ * below). The subject is derived from the body's first line rather than
+ * fetched separately, one fewer field that could disagree with itself.
+ * The abbreviated hash comes from git (%h) rather than slicing %H, so it
+ * honors core.abbrev and stays unique in large repos.
  *
  * Uses `%x00`, git's own escape syntax for emitting a NUL byte, not a
  * literal NUL character in this string: this format string is passed as a
@@ -40,7 +43,7 @@ export const LOG_FORMAT_FIELD_COUNT = 2;
  * with no such restriction, that output byte is what FIELD_SEP above
  * matches against in parseLog.
  */
-export const LOG_FORMAT = "%(trailers:key=Agent-Context,valueonly)%x00%B%x00";
+export const LOG_FORMAT = "%H%x00%h%x00%(trailers:key=Agent-Context,valueonly)%x00%B%x00";
 // Tolerates optional whitespace before the colon (git itself does: `Agent-Context : {...}`
 // is extracted as a trailer just as readily as `Agent-Context: {...}`, verified against real
 // git) and is case-insensitive to match git's own case-insensitive trailer key matching.
@@ -192,12 +195,14 @@ export function parseLog(raw: string): ParseResult {
 
   for (let i = 0; i < fields.length; i += LOG_FORMAT_FIELD_COUNT) {
     // git separates records with a newline, which lands at the start of
-    // the next record's first field; trailer values never start with one.
-    const trailerSection = fields[i].replace(/^\n/, "");
-    const rawBody = fields[i + 1].replace(/\n+$/, "");
+    // the next record's first field; hashes never contain whitespace.
+    const hash = fields[i].trim();
+    const shortHash = fields[i + 1];
+    const trailerSection = fields[i + 2];
+    const rawBody = fields[i + 3].replace(/\n+$/, "");
     const subject = rawBody.split("\n")[0] ?? "";
     const trailerLines = trailerSection.split("\n").filter((line) => line.trim() !== "");
-    const base = { subject };
+    const base = { hash, shortHash, subject };
 
     if (trailerLines.length === 0) {
       const misplaced = AGENT_CONTEXT_LINE.test(rawBody);

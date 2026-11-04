@@ -59,7 +59,7 @@ function runFatal<T>(fn: () => T): T {
 function printWarnings(warnings: ParseWarning[]): void {
   for (const warning of warnings) {
     process.stderr.write(
-      `agent-commit: warning: ${warning.reason} on commit "${sanitizeForTerminal(warning.subject)}", skipped\n`,
+      `agent-commit: warning: ${warning.reason} on commit ${warning.shortHash} "${sanitizeForTerminal(warning.subject)}", skipped\n`,
     );
   }
 }
@@ -186,7 +186,9 @@ program
         misplaced: "MISPLACED".padEnd(labelWidth),
       };
       for (const result of results) {
-        process.stdout.write(`${labels[result.status]}  ${sanitizeForTerminal(result.subject)}\n`);
+        process.stdout.write(
+          `${labels[result.status]}  ${result.shortHash}  ${sanitizeForTerminal(result.subject)}\n`,
+        );
       }
     }
 
