@@ -129,8 +129,18 @@ export function checkGitVersion(cwd?: string): void {
 
 /** Runs `git log` with LOG_FORMAT, the NUL-delimited format parseLog expects. Extra args are passed through (revision ranges, --since, path filters, etc). */
 export function runGitLog(extraArgs: string[] = [], cwd?: string): string {
+  return runGit(["log", `--format=${LOG_FORMAT}`, ...extraArgs], cwd);
+}
+
+/**
+ * Runs any git subcommand and returns its stdout, translating failures
+ * into this module's typed errors (git missing, not a repository, or
+ * git's own non-zero exit with its stderr preserved) rather than leaking
+ * a raw execFileSync stack trace.
+ */
+export function runGit(args: string[], cwd?: string): string {
   try {
-    return execFileSync("git", ["log", `--format=${LOG_FORMAT}`, ...extraArgs], {
+    return execFileSync("git", args, {
       cwd,
       encoding: "utf8",
       maxBuffer: 1024 * 1024 * 64,

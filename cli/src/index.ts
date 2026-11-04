@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
+import { blame, formatBlamePretty, parseLineRange } from "./blame.js";
 import { checkRecords } from "./check.js";
 import { formatJson, formatPrettyList, sanitizeForTerminal } from "./format.js";
 import { formatInitResult, needsAction, runInit } from "./init.js";
@@ -146,6 +147,37 @@ program
     }
 
     process.stdout.write((opts.json ? formatJson(records) : formatPrettyList(records)) + "\n");
+  });
+
+program
+  .command("blame")
+  .argument("<file>", "a file in the repository, as it currently stands in the working tree")
+  .description(
+    "shows the Agent-Context of each commit that last changed the given lines (the whole file " +
+      "without -L), via git blame. One entry per commit, ordered by where its lines first " +
+      "appear in the file. Lines not committed yet are counted on stderr, not attributed.",
+  )
+  .option("-L <start[,end]>", "only these lines, 1-based and inclusive, e.g. -L 42 or -L 40,60")
+  .option("--json", "output machine-readable JSON instead of pretty text")
+  .action((file: string, opts: { L?: string; json?: boolean }) => {
+    let range: ReturnType<typeof parseLineRange>;
+    if (opts.L !== undefined) {
+      range = parseLineRange(opts.L);
+      if (!range) {
+        fail(`-L must be <start> or <start>,<end> with 1 <= start <= end, got "${opts.L}"`);
+      }
+    }
+    runFatal(() => checkGitVersion());
+
+    const { records, uncommittedLines, warnings } = runFatal(() => blame(file, range));
+    printWarnings(warnings);
+    if (uncommittedLines > 0) {
+      process.stderr.write(
+        `agent-commit: ${uncommittedLines} line(s) not committed yet, so no commit to show for them\n`,
+      );
+    }
+
+    process.stdout.write((opts.json ? formatJson(records) : formatBlamePretty(records)) + "\n");
   });
 
 program
