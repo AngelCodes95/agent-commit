@@ -1,19 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildMergeDraft, formatMergeDraft } from "../src/merge-draft.js";
 import { parseLog, runGitLog } from "../src/parser.js";
-import type { AgentCommitRecord } from "../src/types.js";
+import { record } from "./fixtures/record.js";
 import { TempRepo } from "./fixtures/temp-repo.js";
-
-function record(overrides: Partial<AgentCommitRecord> = {}): AgentCommitRecord {
-  return {
-    subject: "subject",
-    context: null,
-    malformed: false,
-    ambiguous: false,
-    misplaced: false,
-    ...overrides,
-  };
-}
 
 describe("buildMergeDraft", () => {
   it("unions touches and refs across commits, deduped", () => {

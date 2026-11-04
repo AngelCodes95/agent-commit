@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatJson, formatPretty, formatPrettyList, sanitizeForTerminal } from "../src/format.js";
-import type { AgentCommitRecord } from "../src/types.js";
-
-function record(overrides: Partial<AgentCommitRecord> = {}): AgentCommitRecord {
-  return {
-    subject: "subject",
-    context: null,
-    malformed: false,
-    ambiguous: false,
-    misplaced: false,
-    ...overrides,
-  };
-}
+import { record } from "./fixtures/record.js";
 
 describe("formatPretty", () => {
   it("prints just the subject when there's no trailer", () => {
