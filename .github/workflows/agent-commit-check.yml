@@ -19,9 +19,9 @@ jobs:
         with:
           node-version: 20
 
-      # This repo isn't published to npm yet, so the workflow builds the CLI
-      # from source. An adopting repo using the published package would
-      # instead run: npx agent-commit@latest check
+      # Builds the CLI from source on purpose: this repo is the CLI, so the
+      # check should run the code that just landed, not the last release.
+      # An adopting repo would instead run: npx agent-commit@latest check
       - name: Build agent-commit CLI from source
         working-directory: cli
         run: |
