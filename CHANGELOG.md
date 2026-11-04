@@ -8,6 +8,15 @@ version).
 
 ## [Unreleased]
 
+### Fixed
+
+- A commit with an empty message (`git commit --allow-empty-message`)
+  no longer swallows the commit next to it. Records were split on a
+  double-NUL boundary, and an empty message produced two adjacent empty
+  fields that looked identical to it, so `log` dropped the neighboring
+  commit and misreported what remained as `MISPLACED`. The parser now
+  reads a fixed number of NUL-terminated fields per commit.
+
 ## [0.1.0] - 2026-09-11
 
 First published release.

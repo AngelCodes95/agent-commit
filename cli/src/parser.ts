@@ -2,39 +2,45 @@ import { execFileSync } from "node:child_process";
 import type { AgentCommitRecord, ParseResult, ParseWarning } from "./types.js";
 
 /**
- * A single NUL byte, as a field separator between a commit's trailer
- * extraction and its raw body. A NUL byte is the one thing guaranteed to
- * never appear inside a git commit message, git itself won't let one
- * through, so it can't collide with real content the way an earlier,
- * printable-string version of this separator once did (a commit whose
- * body happened to contain that literal string, for example one
- * documenting this very format, silently split into phantom records; see
- * SPEC.md, "Reading it back," for the incident this replaced).
+ * A single NUL byte, terminating every field of every record. A NUL byte
+ * is the one thing guaranteed to never appear inside a git commit message
+ * (git itself won't let one through), so it can't collide with real
+ * content the way an earlier, printable-string separator once did (a
+ * commit whose body happened to contain that literal string, for example
+ * one documenting this very format, silently split into phantom records;
+ * see SPEC.md, "Reading it back," for the incident this replaced).
  */
 export const FIELD_SEP = "\0";
-/** Two NUL bytes in a row, as the boundary between one commit's record and the next. Unambiguous for the same reason FIELD_SEP is: content can never contain even one NUL, let alone two adjacent ones. */
-export const SENTINEL = "\0\0";
+/**
+ * Fields emitted per commit by LOG_FORMAT, in order: trailer extraction,
+ * raw body. Records are parsed
+ * positionally, LOG_FORMAT_FIELD_COUNT fields at a time, rather than split
+ * on a multi-byte record boundary: any field can legitimately be empty (no
+ * trailer, or a commit made with --allow-empty-message), and two adjacent
+ * empty-field terminators are byte-identical to a "\0\0" boundary, which
+ * is exactly how an empty-message commit used to swallow the record next
+ * to it.
+ */
+export const LOG_FORMAT_FIELD_COUNT = 2;
 /**
  * Internal to the CLI, deliberately richer than the plain-git example in
  * SPEC.md's "Reading it back" section. That example stays a minimal
- * two-field command anyone can run with no tool; this format adds the raw
- * commit body so the CLI can detect a trailer that's present in the
- * message but sitting outside git's recognized trailer block (see the
- * MISPLACED detection in parseLog below), which the plain two-field
- * command cannot see at all. The subject is derived from the body's first
- * line rather than fetched separately, one fewer field, one fewer thing
- * that could disagree with itself.
+ * two-field command anyone can run with no tool; this format adds the
+ * raw commit body (so the CLI can detect a trailer that's present in the
+ * message but sitting outside git's recognized trailer block, see the
+ * MISPLACED detection in parseLog below). The subject is derived from the
+ * body's first line rather than fetched separately, one fewer field that
+ * could disagree with itself.
  *
  * Uses `%x00`, git's own escape syntax for emitting a NUL byte, not a
  * literal NUL character in this string: this format string is passed as a
  * command-line argument, and a real embedded NUL there is invalid at the
  * OS/argv level (Node rejects it outright). Git converts `%x00` into an
  * actual NUL byte only in its captured *output*, a different code path
- * with no such restriction, that output byte is what FIELD_SEP/SENTINEL
- * above are matching against in parseLog. Verified by inspecting git's
- * raw output byte-for-byte before writing this.
+ * with no such restriction, that output byte is what FIELD_SEP above
+ * matches against in parseLog.
  */
-export const LOG_FORMAT = "%(trailers:key=Agent-Context,valueonly)%x00%B%x00%x00";
+export const LOG_FORMAT = "%(trailers:key=Agent-Context,valueonly)%x00%B%x00";
 // Tolerates optional whitespace before the colon (git itself does: `Agent-Context : {...}`
 // is extracted as a trailer just as readily as `Agent-Context: {...}`, verified against real
 // git) and is case-insensitive to match git's own case-insensitive trailer key matching.
@@ -118,7 +124,7 @@ export function checkGitVersion(cwd?: string): void {
   }
 }
 
-/** Runs `git log` with the sentinel-delimited format from SPEC.md. Extra args are passed through (revision ranges, --since, path filters, etc). */
+/** Runs `git log` with LOG_FORMAT, the NUL-delimited format parseLog expects. Extra args are passed through (revision ranges, --since, path filters, etc). */
 export function runGitLog(extraArgs: string[] = [], cwd?: string): string {
   try {
     return execFileSync("git", ["log", `--format=${LOG_FORMAT}`, ...extraArgs], {
@@ -146,53 +152,72 @@ export function runGitLog(extraArgs: string[] = [], cwd?: string): string {
   }
 }
 
+/** Raised when git log output doesn't have the shape LOG_FORMAT produces. Indicates a bug, not bad commit content. */
+export class LogFormatError extends Error {
+  constructor(fieldCount: number) {
+    super(
+      `unexpected git log output: ${fieldCount} fields is not a multiple of ${LOG_FORMAT_FIELD_COUNT}`,
+    );
+    this.name = "LogFormatError";
+  }
+}
+
 /**
- * Parses raw `git log --format=<LOG_FORMAT>` output into records. Each
- * commit's record (between SENTINELs, two adjacent NULs) has two fields
- * split on a single NUL: the trailer extraction (0, 1, or 2+ non-empty
- * lines: 0 means no trailer, 1 means a normal trailer, 2+ means a
- * duplicate, treated as ambiguous per SPEC.md rather than guessing which
- * is authoritative), and the raw commit body, whose first line is the
- * subject and whose full text is used only to detect a trailer that's
- * present in the message but not in the position git recognizes as a
- * trailer, exactly what GitHub's squash-merge prefill can silently
- * produce (see SPEC.md, "Squash merges").
+ * Parses raw `git log --format=<LOG_FORMAT>` output into records. The
+ * output is split on NUL into a flat field list and consumed
+ * LOG_FORMAT_FIELD_COUNT fields per commit (see that constant for why
+ * positional parsing replaced a record boundary). Per commit:
+ *
+ * - the trailer extraction holds 0, 1, or 2+ non-empty lines: 0 means no
+ *   trailer, 1 means a normal trailer, 2+ means a duplicate, treated as
+ *   ambiguous per SPEC.md rather than guessing which is authoritative;
+ * - the raw body's first line is the subject, and its full text is used
+ *   only to detect a trailer that's present in the message but not in the
+ *   position git recognizes as a trailer, exactly what GitHub's
+ *   squash-merge prefill can silently produce (see SPEC.md, "Squash
+ *   merges").
  */
 export function parseLog(raw: string): ParseResult {
   const records: AgentCommitRecord[] = [];
   const warnings: ParseWarning[] = [];
 
-  const chunks = raw.split(SENTINEL);
+  // Every field ends in FIELD_SEP, so the final element is whatever
+  // follows the last commit's last field: git's own record-terminating
+  // newline, or nothing.
+  const fields = raw.split(FIELD_SEP);
+  const trailing = fields.pop() ?? "";
+  if (trailing.trim() !== "" || fields.length % LOG_FORMAT_FIELD_COUNT !== 0) {
+    throw new LogFormatError(fields.length);
+  }
 
-  for (const chunk of chunks) {
-    const trimmed = chunk.replace(/^\n+/, "").replace(/\n+$/, "");
-    if (trimmed === "") continue;
-
-    const sepIndex = trimmed.indexOf(FIELD_SEP);
-    const trailerSection = sepIndex === -1 ? "" : trimmed.slice(0, sepIndex);
-    const rawBody = sepIndex === -1 ? trimmed : trimmed.slice(sepIndex + FIELD_SEP.length);
+  for (let i = 0; i < fields.length; i += LOG_FORMAT_FIELD_COUNT) {
+    // git separates records with a newline, which lands at the start of
+    // the next record's first field; trailer values never start with one.
+    const trailerSection = fields[i].replace(/^\n/, "");
+    const rawBody = fields[i + 1].replace(/\n+$/, "");
     const subject = rawBody.split("\n")[0] ?? "";
     const trailerLines = trailerSection.split("\n").filter((line) => line.trim() !== "");
+    const base = { subject };
 
     if (trailerLines.length === 0) {
       const misplaced = AGENT_CONTEXT_LINE.test(rawBody);
-      if (misplaced) warnings.push({ subject, reason: "misplaced-trailer" });
-      records.push({ subject, context: null, malformed: false, ambiguous: false, misplaced });
+      if (misplaced) warnings.push({ ...base, reason: "misplaced-trailer" });
+      records.push({ ...base, context: null, malformed: false, ambiguous: false, misplaced });
       continue;
     }
 
     if (trailerLines.length > 1) {
-      warnings.push({ subject, reason: "ambiguous-trailer" });
-      records.push({ subject, context: null, malformed: false, ambiguous: true, misplaced: false });
+      warnings.push({ ...base, reason: "ambiguous-trailer" });
+      records.push({ ...base, context: null, malformed: false, ambiguous: true, misplaced: false });
       continue;
     }
 
     try {
       const context: unknown = JSON.parse(trailerLines[0]);
-      records.push({ subject, context, malformed: false, ambiguous: false, misplaced: false });
+      records.push({ ...base, context, malformed: false, ambiguous: false, misplaced: false });
     } catch {
-      warnings.push({ subject, reason: "malformed-json" });
-      records.push({ subject, context: null, malformed: true, ambiguous: false, misplaced: false });
+      warnings.push({ ...base, reason: "malformed-json" });
+      records.push({ ...base, context: null, malformed: true, ambiguous: false, misplaced: false });
     }
   }
 
