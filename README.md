@@ -77,7 +77,7 @@ Tell your agent to "agent-commit" your changes. If it already knows the format (
 
 The block's core content never changes, only which file it ends up in; the appendix at the bottom of the block only applies if your repo squash-merges or runs commitlint, most do, but check rather than assume. Every commit after the first one in that repo is free, since the instructions are now sitting locally where the agent already looks.
 
-If the `agent-commit` CLI is installed, steps 3 and 4 are `agent-commit init`: it writes the exact current block (the same one below, with a version marker so a later `init` or `check` can tell if a repo's copy has gone stale), links `CLAUDE.md` unless `--no-claude-code` is passed, and refuses to touch an existing, unrelated commit-message convention or clobber an already-set-up repo, both cases have to be confirmed explicitly (`--force`, `--update`). Hand-transcribing the block from this page still works and needs nothing installed; `init` just removes the chance of a transcription drifting from what's actually documented here.
+If the `agent-commit` CLI is installed, steps 3 and 4 are `agent-commit init`: it writes the exact current block (the same one below, with a version marker so a later `init` can tell if a repo's copy has gone stale and `init --update` can replace it), links `CLAUDE.md` unless `--no-claude-code` is passed, and refuses to touch an existing, unrelated commit-message convention or clobber an already-set-up repo, both cases have to be confirmed explicitly (`--force`, `--update`). Hand-transcribing the block from this page still works and needs nothing installed; `init` just removes the chance of a transcription drifting from what's actually documented here.
 
 ### The block to add to `AGENTS.md`
 
