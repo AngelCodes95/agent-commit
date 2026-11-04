@@ -91,6 +91,10 @@ program
   .option("--breaking", "filter to breaking: true only")
   .option("--grep <text>", "case-insensitive substring match against why")
   .option("--refs <ref>", "filter to commits whose refs array contains this exact value")
+  .option(
+    "--touches <path>",
+    "filter to commits whose touches overlaps this path, on whole path segments (src/auth matches src/auth/session.ts and src)",
+  )
   .option("--since <date>", "passed through to git log --since")
   .option("--until <date>", "passed through to git log --until")
   .option("--json", "output machine-readable JSON instead of pretty text")
@@ -98,6 +102,7 @@ program
     breaking?: boolean;
     grep?: string;
     refs?: string;
+    touches?: string;
     since?: string;
     until?: string;
     json?: boolean;
@@ -116,6 +121,7 @@ program
     if (opts.breaking) queryOptions.breaking = true;
     if (opts.grep) queryOptions.grep = opts.grep;
     if (opts.refs) queryOptions.refs = opts.refs;
+    if (opts.touches !== undefined) queryOptions.touches = opts.touches;
 
     const filtered = queryRecords(records, queryOptions);
 

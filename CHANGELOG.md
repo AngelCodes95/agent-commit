@@ -15,6 +15,10 @@ version).
   leading each entry in text output. Previously a result could be found
   but not acted on, since nothing identified which commit it was. Parse
   warnings on stderr name the commit's short hash too.
+- `log --touches <path>`: filters by the `touches` field, matching whole
+  path segments in both directions, so `src/auth` finds commits listing
+  `src/auth`, `src/auth/session.ts`, or the broader `src`, but never
+  `src/authz`. Leading `./` or `/` and trailing `/` are ignored.
 
 ### Fixed
 

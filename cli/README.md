@@ -38,11 +38,13 @@ target directory (the current directory if none is given), and links
 an existing, unrelated commit-message convention or an already-set-up
 repo without `--force`/`--update`.
 
-`agent-commit log [--breaking] [--grep <text>] [--refs <ref>] [--since <date>] [--until <date>] [--json]`
+`agent-commit log [--breaking] [--grep <text>] [--refs <ref>] [--touches <path>] [--since <date>] [--until <date>] [--json]`
 Filters commit history by `Agent-Context` fields. `--grep` is a
 case-insensitive substring match against `why`, not semantic search.
 `--refs` is an exact match, see the main repo's `SPEC.md` for why ref
-form consistency matters.
+form consistency matters. `--touches` matches whole path segments in
+both directions: `src/auth` finds `src/auth`, `src/auth/session.ts`,
+and the broader `src`, but never `src/authz`.
 
 `agent-commit show <ref> [--json]`
 Shows a single commit's `Agent-Context` trailer.

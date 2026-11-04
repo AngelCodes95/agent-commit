@@ -50,6 +50,15 @@ describe("agent-commit log, against the compiled binary", () => {
     expect(parsed[0].context).toEqual({ why: "x" });
   });
 
+  it("filters by --touches on path segments", () => {
+    repo = new TempRepo();
+    repo.commit('feat: auth\n\nAgent-Context: {"why":"a","touches":["src/auth/session.ts"]}');
+    repo.commit('feat: authz\n\nAgent-Context: {"why":"b","touches":["src/authz"]}');
+    const { stdout, status } = runCli(["log", "--touches", "src/auth", "--json"], repo.dir);
+    expect(status).toBe(0);
+    expect(JSON.parse(stdout).map((r: { subject: string }) => r.subject)).toEqual(["feat: auth"]);
+  });
+
   it("routes parse warnings to stderr, never mixed into stdout's structured output", () => {
     repo = new TempRepo();
     repo.commit('fix: broken\n\nAgent-Context: {not valid json}');
