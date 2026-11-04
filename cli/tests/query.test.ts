@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { queryRecords } from "../src/query.js";
+import { queryRecords, touchesPath } from "../src/query.js";
 import type { AgentCommitRecord } from "../src/types.js";
 import { record } from "./fixtures/record.js";
 
@@ -95,5 +95,57 @@ describe("queryRecords", () => {
     expect(subjects).not.toContain("chore: bump dependency");
     expect(subjects).not.toContain("fix: malformed trailer");
     expect(subjects).not.toContain("fix: ambiguous trailer");
+  });
+});
+
+describe("touches filtering", () => {
+  const touchFixtures = [
+    record({ subject: "a: exact dir", context: { touches: ["src/auth"] } }),
+    record({ subject: "b: file inside", context: { touches: ["src/auth/session.ts", "docs"] } }),
+    record({ subject: "c: broader dir", context: { touches: ["src"] } }),
+    record({ subject: "d: sibling with shared prefix", context: { touches: ["src/authz"] } }),
+    record({ subject: "e: unrelated", context: { touches: ["cli/src/auth"] } }),
+    record({ subject: "f: no touches", context: { why: "x" } }),
+    record({ subject: "g: touches not an array", context: { touches: "src/auth" } }),
+  ];
+  const subjects = (touches: string) => queryRecords(touchFixtures, { touches }).map((r) => r.subject);
+
+  it("matches entries inside, equal to, or containing the queried path", () => {
+    expect(subjects("src/auth")).toEqual(["a: exact dir", "b: file inside", "c: broader dir"]);
+  });
+
+  it("matches a file query against a directory entry that contains it", () => {
+    expect(subjects("src/auth/session.ts")).toEqual(["a: exact dir", "b: file inside", "c: broader dir"]);
+  });
+
+  it("never matches on a partial path segment", () => {
+    expect(subjects("src/au")).toEqual(["c: broader dir"]);
+    expect(subjects("src/auth")).not.toContain("d: sibling with shared prefix");
+  });
+
+  it("is anchored at the repo root, not a suffix match", () => {
+    expect(subjects("src/auth")).not.toContain("e: unrelated");
+  });
+
+  it("tolerates ./, leading /, and trailing / on both the query and the entry", () => {
+    expect(touchesPath("./src/auth/", "/src/auth")).toBe(true);
+    expect(subjects("./src/auth/")).toEqual(subjects("src/auth"));
+  });
+
+  it("never matches an empty or root-only query, rather than matching everything", () => {
+    expect(subjects("")).toEqual([]);
+    expect(subjects("/")).toEqual([]);
+    expect(touchesPath("", "src")).toBe(false);
+  });
+
+  it("is case-sensitive, like git paths", () => {
+    expect(subjects("SRC/auth")).toEqual([]);
+  });
+
+  it("skips records without a touches array, and non-string entries", () => {
+    expect(subjects("src/auth")).not.toContain("f: no touches");
+    expect(subjects("src/auth")).not.toContain("g: touches not an array");
+    const mixed = [record({ subject: "h", context: { touches: [42, null, "src/auth"] } })];
+    expect(queryRecords(mixed, { touches: "src/auth" })).toHaveLength(1);
   });
 });
