@@ -6,7 +6,11 @@ All notable changes to this project are documented here. Format follows
 to the format itself (see `SPEC.md` for the format's own, separately tracked
 version).
 
-## Unreleased
+## [Unreleased]
+
+## [0.1.0] - 2026-09-11
+
+First published release.
 
 ### Added
 
@@ -170,3 +174,6 @@ version).
   return value is inserted literally; added regression tests covering
   this and the other special replacement sequences (`$&`, `$$`, `` $' ``,
   `$9`).
+
+[Unreleased]: https://github.com/AngelCodes95/agent-commit/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/AngelCodes95/agent-commit/releases/tag/v0.1.0
