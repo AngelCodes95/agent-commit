@@ -8,6 +8,8 @@ version).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
 ### Added
 
 - `log`, `show`, and `check` results now include each commit's hash:
@@ -201,5 +203,6 @@ First published release.
   this and the other special replacement sequences (`$&`, `$$`, `` $' ``,
   `$9`).
 
-[Unreleased]: https://github.com/AngelCodes95/agent-commit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AngelCodes95/agent-commit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/AngelCodes95/agent-commit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AngelCodes95/agent-commit/releases/tag/v0.1.0
