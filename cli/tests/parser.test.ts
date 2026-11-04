@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,17 +8,24 @@ import {
   FIELD_SEP,
   GitCommandError,
   LOG_FORMAT,
+  LOG_FORMAT_FIELD_COUNT,
+  LogFormatError,
   NotAGitRepositoryError,
   parseLog,
   runGitLog,
-  SENTINEL,
 } from "../src/parser.js";
 import { isAgentContextObject } from "../src/types.js";
 import { TempRepo } from "./fixtures/temp-repo.js";
 
-/** Builds a synthetic raw log record matching LOG_FORMAT's two NUL-delimited fields, for one commit. Subject is always the raw body's first line, matching how parseLog derives it, so tests don't pass it separately. */
+/**
+ * Builds one synthetic commit's raw log output, shaped exactly like
+ * LOG_FORMAT's real output: two NUL-terminated fields (trailer
+ * extraction, body) followed by git's record-terminating newline.
+ * Subject is always the raw body's first line, matching how parseLog
+ * derives it, so tests don't pass it separately.
+ */
 function chunk(trailerSection: string, rawBody: string): string {
-  return trailerSection + FIELD_SEP + rawBody + SENTINEL;
+  return [trailerSection, rawBody].map((f) => f + FIELD_SEP).join("") + "\n";
 }
 
 describe("parseLog", () => {
@@ -174,6 +182,11 @@ describe("parseLog", () => {
     expect(warnings).toHaveLength(2);
   });
 
+  it("throws LogFormatError on output that isn't a whole number of records, rather than guessing", () => {
+    expect(() => parseLog("only one field" + FIELD_SEP)).toThrow(LogFormatError);
+    expect(() => parseLog("not log output at all")).toThrow(LogFormatError);
+  });
+
   it("handles an empty log (no commits) without error", () => {
     const { records, warnings } = parseLog("");
     expect(records).toHaveLength(0);
@@ -224,6 +237,23 @@ describe("runGitLog + parseLog, against a real temp git repo", () => {
     expect(records[0].context).toBeNull();
     expect(records[1].subject).toBe("refactor: drop LRU eviction");
     expect(records[1].context).toEqual({ why: "redis client lacked per-key timestamps" });
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("keeps an empty-message commit and its neighbors as separate, correct records", () => {
+    // Regression test for a real bug, reproduced against real git before
+    // the fix: records used to be split on a "\0\0" boundary, and an
+    // empty message (--allow-empty-message) produces two adjacent empty
+    // fields that are byte-identical to that boundary. The commit next to
+    // it was swallowed and the remains misreported as MISPLACED.
+    repo = new TempRepo();
+    repo.commit('fix: before\n\nAgent-Context: {"why":"kept"}');
+    execFileSync("git", ["commit", "-q", "--allow-empty", "--allow-empty-message", "-m", ""], { cwd: repo.dir });
+    repo.commit("chore: after");
+    const { records, warnings } = parseLog(runGitLog([], repo.dir));
+    expect(records.map((r) => r.subject)).toEqual(["chore: after", "", "fix: before"]);
+    expect(records[1]).toMatchObject({ context: null, misplaced: false });
+    expect(records[2].context).toEqual({ why: "kept" });
     expect(warnings).toHaveLength(0);
   });
 
@@ -372,13 +402,14 @@ describe("checkGitVersion", () => {
 // pins the constant's own shape so a future edit can't silently drop a
 // field without a test noticing.
 describe("LOG_FORMAT", () => {
-  it("has exactly two NUL-delimited fields ending in the double-NUL sentinel", () => {
+  it("emits trailer and body, each NUL-terminated", () => {
     expect(FIELD_SEP).toBe("\0");
-    expect(SENTINEL).toBe("\0\0");
+    expect(LOG_FORMAT_FIELD_COUNT).toBe(2);
     // The format string itself uses git's %x00 escape syntax, not a literal
     // NUL, since it's passed as a process argument (see LOG_FORMAT's own
     // comment for why an embedded NUL there is invalid).
-    expect(LOG_FORMAT).toBe("%(trailers:key=Agent-Context,valueonly)%x00%B%x00%x00");
+    expect(LOG_FORMAT).toBe("%(trailers:key=Agent-Context,valueonly)%x00%B%x00");
+    expect(LOG_FORMAT.split("%x00")).toHaveLength(LOG_FORMAT_FIELD_COUNT + 1);
     expect(LOG_FORMAT).not.toContain("\0");
   });
 });
