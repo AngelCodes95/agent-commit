@@ -1,17 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { queryRecords } from "../src/query.js";
 import type { AgentCommitRecord } from "../src/types.js";
-
-function record(overrides: Partial<AgentCommitRecord> = {}): AgentCommitRecord {
-  return {
-    subject: "subject",
-    context: null,
-    malformed: false,
-    ambiguous: false,
-    misplaced: false,
-    ...overrides,
-  };
-}
+import { record } from "./fixtures/record.js";
 
 // No `type` key anywhere here: SPEC.md is explicit that `type` isn't a
 // field this format uses, so realistic fixtures shouldn't have one, and

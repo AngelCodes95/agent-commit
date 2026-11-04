@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkRecords } from "../src/check.js";
-import type { AgentCommitRecord } from "../src/types.js";
-
-function record(overrides: Partial<AgentCommitRecord> = {}): AgentCommitRecord {
-  return {
-    subject: "subject",
-    context: null,
-    malformed: false,
-    ambiguous: false,
-    misplaced: false,
-    ...overrides,
-  };
-}
+import { record } from "./fixtures/record.js";
 
 describe("checkRecords", () => {
   it("marks a commit with a valid object trailer as ok", () => {
