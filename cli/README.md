@@ -47,6 +47,10 @@ form consistency matters.
 `agent-commit show <ref> [--json]`
 Shows a single commit's `Agent-Context` trailer.
 
+Every result from `log`, `show`, and `check` includes the commit's hash:
+`hash` (full) and `shortHash` (git's own abbreviation) in `--json`
+output, and the short hash at the start of each entry in text output.
+
 `agent-commit check [--range <range>] [--count <n>] [--json]`
 Read-only, advisory report on whether recent commits have a usable
 trailer. Distinguishes a commit with no trailer at all from one where an

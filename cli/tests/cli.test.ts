@@ -35,7 +35,7 @@ describe("agent-commit log, against the compiled binary", () => {
     repo.commit('fix: real one\n\nAgent-Context: {"why":"a real reason"}');
     const { stdout, status } = runCli(["log"], repo.dir);
     expect(status).toBe(0);
-    expect(stdout).toContain("fix: real one");
+    expect(stdout).toMatch(/^[0-9a-f]{7,} fix: real one$/m);
     expect(stdout).toContain("why: a real reason");
   });
 
@@ -46,6 +46,7 @@ describe("agent-commit log, against the compiled binary", () => {
     expect(status).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(parsed[0].subject).toBe("fix: json one");
+    expect(parsed[0].hash).toMatch(/^[0-9a-f]{40}$/);
     expect(parsed[0].context).toEqual({ why: "x" });
   });
 
@@ -166,7 +167,9 @@ describe("agent-commit check, against the compiled binary", () => {
     const { stdout, status } = runCli(["check", "--json"], repo.dir);
     expect(status).toBe(0);
     const parsed = JSON.parse(stdout);
-    expect(parsed).toEqual([{ subject: "fix: fine", status: "ok" }]);
+    const hash = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo.dir, encoding: "utf8" }).trim();
+    const shortHash = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: repo.dir, encoding: "utf8" }).trim();
+    expect(parsed).toEqual([{ hash, shortHash, subject: "fix: fine", status: "ok" }]);
   });
 
   it("prints the MISPLACED explanation to stderr only when something is actually misplaced", () => {

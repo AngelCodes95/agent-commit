@@ -15,18 +15,21 @@ import {
   runGitLog,
 } from "../src/parser.js";
 import { isAgentContextObject } from "../src/types.js";
+import { FAKE_HASH, FAKE_SHORT_HASH } from "./fixtures/record.js";
 import { TempRepo } from "./fixtures/temp-repo.js";
 
 /**
  * Builds one synthetic commit's raw log output, shaped exactly like
- * LOG_FORMAT's real output: two NUL-terminated fields (trailer
- * extraction, body) followed by git's record-terminating newline.
+ * LOG_FORMAT's real output: four NUL-terminated fields (hash, short hash,
+ * trailer extraction, body) followed by git's record-terminating newline.
  * Subject is always the raw body's first line, matching how parseLog
  * derives it, so tests don't pass it separately.
  */
 function chunk(trailerSection: string, rawBody: string): string {
-  return [trailerSection, rawBody].map((f) => f + FIELD_SEP).join("") + "\n";
+  return [FAKE_HASH, FAKE_SHORT_HASH, trailerSection, rawBody].map((f) => f + FIELD_SEP).join("") + "\n";
 }
+
+const fakeHashes = { hash: FAKE_HASH, shortHash: FAKE_SHORT_HASH };
 
 describe("parseLog", () => {
   it("returns context: null for a commit with no trailer", () => {
@@ -34,6 +37,7 @@ describe("parseLog", () => {
     const { records, warnings } = parseLog(raw);
     expect(records).toHaveLength(1);
     expect(records[0]).toEqual({
+      ...fakeHashes,
       subject: "chore: no trailer",
       context: null,
       malformed: false,
@@ -67,7 +71,7 @@ describe("parseLog", () => {
     expect(records[0].context).toBeNull();
     expect(records[0].malformed).toBe(true);
     expect(records[0].misplaced).toBe(false);
-    expect(warnings).toEqual([{ subject: "fix: broken trailer", reason: "malformed-json" }]);
+    expect(warnings).toEqual([{ ...fakeHashes, subject: "fix: broken trailer", reason: "malformed-json" }]);
   });
 
   it("flags duplicate Agent-Context trailers as ambiguous rather than picking one", () => {
@@ -80,7 +84,7 @@ describe("parseLog", () => {
     expect(records[0].context).toBeNull();
     expect(records[0].ambiguous).toBe(true);
     expect(records[0].misplaced).toBe(false);
-    expect(warnings).toEqual([{ subject: "fix: two trailers", reason: "ambiguous-trailer" }]);
+    expect(warnings).toEqual([{ ...fakeHashes, subject: "fix: two trailers", reason: "ambiguous-trailer" }]);
   });
 
   it("flags a trailer that's present in the body but not recognized as a trailer as misplaced", () => {
@@ -98,7 +102,7 @@ describe("parseLog", () => {
     expect(records[0].malformed).toBe(false);
     expect(records[0].ambiguous).toBe(false);
     expect(records[0].misplaced).toBe(true);
-    expect(warnings).toEqual([{ subject: "fix: github prefill shape", reason: "misplaced-trailer" }]);
+    expect(warnings).toEqual([{ ...fakeHashes, subject: "fix: github prefill shape", reason: "misplaced-trailer" }]);
   });
 
   it("does not flag misplaced when there's genuinely no Agent-Context text anywhere in the body", () => {
@@ -183,7 +187,7 @@ describe("parseLog", () => {
   });
 
   it("throws LogFormatError on output that isn't a whole number of records, rather than guessing", () => {
-    expect(() => parseLog("only one field" + FIELD_SEP)).toThrow(LogFormatError);
+    expect(() => parseLog(FAKE_HASH + FIELD_SEP + FAKE_SHORT_HASH + FIELD_SEP)).toThrow(LogFormatError);
     expect(() => parseLog("not log output at all")).toThrow(LogFormatError);
   });
 
@@ -238,6 +242,16 @@ describe("runGitLog + parseLog, against a real temp git repo", () => {
     expect(records[1].subject).toBe("refactor: drop LRU eviction");
     expect(records[1].context).toEqual({ why: "redis client lacked per-key timestamps" });
     expect(warnings).toHaveLength(0);
+  });
+
+  it("reports each commit's real full and abbreviated hash", () => {
+    repo = new TempRepo();
+    repo.commit('fix: hashed\n\nAgent-Context: {"why":"x"}');
+    const expectedHash = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo.dir, encoding: "utf8" }).trim();
+    const expectedShort = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: repo.dir, encoding: "utf8" }).trim();
+    const { records } = parseLog(runGitLog([], repo.dir));
+    expect(records[0].hash).toBe(expectedHash);
+    expect(records[0].shortHash).toBe(expectedShort);
   });
 
   it("keeps an empty-message commit and its neighbors as separate, correct records", () => {
@@ -402,13 +416,13 @@ describe("checkGitVersion", () => {
 // pins the constant's own shape so a future edit can't silently drop a
 // field without a test noticing.
 describe("LOG_FORMAT", () => {
-  it("emits trailer and body, each NUL-terminated", () => {
+  it("emits hash, short hash, trailer, and body, each NUL-terminated", () => {
     expect(FIELD_SEP).toBe("\0");
-    expect(LOG_FORMAT_FIELD_COUNT).toBe(2);
+    expect(LOG_FORMAT_FIELD_COUNT).toBe(4);
     // The format string itself uses git's %x00 escape syntax, not a literal
     // NUL, since it's passed as a process argument (see LOG_FORMAT's own
     // comment for why an embedded NUL there is invalid).
-    expect(LOG_FORMAT).toBe("%(trailers:key=Agent-Context,valueonly)%x00%B%x00");
+    expect(LOG_FORMAT).toBe("%H%x00%h%x00%(trailers:key=Agent-Context,valueonly)%x00%B%x00");
     expect(LOG_FORMAT.split("%x00")).toHaveLength(LOG_FORMAT_FIELD_COUNT + 1);
     expect(LOG_FORMAT).not.toContain("\0");
   });

@@ -8,6 +8,14 @@ version).
 
 ## [Unreleased]
 
+### Added
+
+- `log`, `show`, and `check` results now include each commit's hash:
+  `hash` and `shortHash` fields in `--json` output, and the short hash
+  leading each entry in text output. Previously a result could be found
+  but not acted on, since nothing identified which commit it was. Parse
+  warnings on stderr name the commit's short hash too.
+
 ### Fixed
 
 - A commit with an empty message (`git commit --allow-empty-message`)

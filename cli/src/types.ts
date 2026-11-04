@@ -2,6 +2,10 @@
 export type AgentContextValue = Record<string, unknown>;
 
 export interface AgentCommitRecord {
+  /** The commit's full object hash. */
+  hash: string;
+  /** git's own abbreviated hash (%h), unique within the repo at the time of reading. For display; use `hash` for anything machine-facing. */
+  shortHash: string;
   /** The commit's subject line. */
   subject: string;
   /**
@@ -33,6 +37,8 @@ export function isAgentContextObject(value: unknown): value is AgentContextValue
 }
 
 export interface ParseWarning {
+  hash: string;
+  shortHash: string;
   subject: string;
   reason: "malformed-json" | "ambiguous-trailer" | "misplaced-trailer";
 }

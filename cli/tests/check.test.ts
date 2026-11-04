@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { checkRecords } from "../src/check.js";
-import { record } from "./fixtures/record.js";
+import { FAKE_HASH, FAKE_SHORT_HASH, record } from "./fixtures/record.js";
+
+const fakeHashes = { hash: FAKE_HASH, shortHash: FAKE_SHORT_HASH };
 
 describe("checkRecords", () => {
   it("marks a commit with a valid object trailer as ok", () => {
     const [result] = checkRecords([record({ subject: "fix: x", context: { why: "y" } })]);
-    expect(result).toEqual({ subject: "fix: x", status: "ok" });
+    expect(result).toEqual({ ...fakeHashes, subject: "fix: x", status: "ok" });
   });
 
   it("marks a commit with valid-but-non-object JSON as miss, ok requires an object shape", () => {
@@ -15,7 +17,7 @@ describe("checkRecords", () => {
 
   it("marks a commit with no trailer at all as miss", () => {
     const [result] = checkRecords([record({ subject: "chore: bump", context: null })]);
-    expect(result).toEqual({ subject: "chore: bump", status: "miss" });
+    expect(result).toEqual({ ...fakeHashes, subject: "chore: bump", status: "miss" });
   });
 
   it("marks a malformed trailer as miss, it's not usable even though something was written", () => {

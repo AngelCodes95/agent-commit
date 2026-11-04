@@ -4,6 +4,8 @@ import type { AgentCommitRecord } from "./types.js";
 export type CheckStatus = "ok" | "miss" | "misplaced";
 
 export interface CheckResult {
+  hash: string;
+  shortHash: string;
   subject: string;
   status: CheckStatus;
 }
@@ -20,8 +22,9 @@ export interface CheckResult {
  */
 export function checkRecords(records: AgentCommitRecord[]): CheckResult[] {
   return records.map((record) => {
+    const base = { hash: record.hash, shortHash: record.shortHash, subject: record.subject };
     if (record.misplaced) {
-      return { subject: record.subject, status: "misplaced" };
+      return { ...base, status: "misplaced" };
     }
     // "ok" requires an object-shaped trailer, the same bar query.ts's
     // structured filters use (isAgentContextObject). SPEC.md allows any
@@ -32,6 +35,6 @@ export function checkRecords(records: AgentCommitRecord[]): CheckResult[] {
     // a false green light query.ts could never act on. Malformed and
     // ambiguous trailers already fall through to miss below.
     const ok = isAgentContextObject(record.context) && !record.malformed && !record.ambiguous;
-    return { subject: record.subject, status: ok ? "ok" : "miss" };
+    return { ...base, status: ok ? "ok" : "miss" };
   });
 }
