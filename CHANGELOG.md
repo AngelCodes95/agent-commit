@@ -19,6 +19,11 @@ version).
   path segments in both directions, so `src/auth` finds commits listing
   `src/auth`, `src/auth/session.ts`, or the broader `src`, but never
   `src/authz`. Leading `./` or `/` and trailing `/` are ignored.
+- `agent-commit blame <file> [-L <start>[,<end>]]`: runs `git blame` on
+  the given lines (the whole file without `-L`) and shows the
+  `Agent-Context` of each commit responsible, with the line ranges each
+  one owns, in pretty or `--json` form. Lines not committed yet are
+  counted on stderr instead of being attributed.
 
 ### Fixed
 

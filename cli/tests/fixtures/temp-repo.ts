@@ -32,6 +32,18 @@ export class TempRepo {
     });
   }
 
+  /** Writes `content` to `path` (relative to the repo) and commits it with `message`, for tests that need a file's lines to change across commits. */
+  commitFile(path: string, content: string, message: string): void {
+    writeFileSync(join(this.dir, path), content);
+    this.git(["add", "--", path]);
+    execFileSync("git", ["commit", "-q", "-F", "-"], { cwd: this.dir, input: message, encoding: "utf8" });
+  }
+
+  /** Writes `content` to `path` without committing, to leave a working-tree change. */
+  writeFile(path: string, content: string): void {
+    writeFileSync(join(this.dir, path), content);
+  }
+
   log(extraArgs: string[], format: string): string {
     return this.git(["log", `--format=${format}`, ...extraArgs]);
   }

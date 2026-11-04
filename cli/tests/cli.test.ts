@@ -26,6 +26,41 @@ function runCli(args: string[], cwd: string) {
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 
+describe("agent-commit blame, against the compiled binary", () => {
+  let repo: TempRepo;
+  afterEach(() => repo?.cleanup());
+
+  it("prints each commit's lines and trailer, and notes uncommitted lines on stderr only", () => {
+    repo = new TempRepo();
+    repo.commitFile("f.txt", "a\nb\n", 'feat: first\n\nAgent-Context: {"why":"the reason"}');
+    repo.writeFile("f.txt", "a\nb\nnew\n");
+    const { stdout, stderr, status } = runCli(["blame", "f.txt", "-L", "1,3"], repo.dir);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^[0-9a-f]{7,} feat: first\n  lines: 1-2\n  why: the reason\n$/);
+    expect(stderr).toContain("1 line(s) not committed yet");
+  });
+
+  it("emits records with a lines field under --json", () => {
+    repo = new TempRepo();
+    repo.commitFile("f.txt", "a\n", "chore: one");
+    const { stdout, status } = runCli(["blame", "f.txt", "--json"], repo.dir);
+    expect(status).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject([{ subject: "chore: one", lines: [[1, 1]] }]);
+  });
+
+  it("rejects a malformed -L before calling git, and reports git's own errors cleanly", () => {
+    repo = new TempRepo();
+    repo.commitFile("f.txt", "a\n", "chore: one");
+    const bad = runCli(["blame", "f.txt", "-L", "5,2"], repo.dir);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("-L must be <start> or <start>,<end>");
+    const missing = runCli(["blame", "nope.txt"], repo.dir);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/^agent-commit: fatal: no such path/);
+    expect(missing.stdout).toBe("");
+  });
+});
+
 describe("agent-commit log, against the compiled binary", () => {
   let repo: TempRepo;
   afterEach(() => repo?.cleanup());

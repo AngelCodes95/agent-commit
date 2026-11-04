@@ -49,9 +49,16 @@ and the broader `src`, but never `src/authz`.
 `agent-commit show <ref> [--json]`
 Shows a single commit's `Agent-Context` trailer.
 
-Every result from `log`, `show`, and `check` includes the commit's hash:
+Every result from `log`, `show`, `blame`, and `check` includes the commit's hash:
 `hash` (full) and `shortHash` (git's own abbreviation) in `--json`
 output, and the short hash at the start of each entry in text output.
+
+`agent-commit blame <file> [-L <start>[,<end>]] [--json]`
+Shows the `Agent-Context` of each commit that last changed the given
+lines (the whole file without `-L`), via `git blame`, with the line
+ranges each commit owns. `-L` takes git's numeric form, 1-based and
+inclusive: `-L 42` or `-L 40,60`. Lines not committed yet are counted
+on stderr rather than attributed to anything.
 
 `agent-commit check [--range <range>] [--count <n>] [--json]`
 Read-only, advisory report on whether recent commits have a usable
