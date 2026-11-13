@@ -89,7 +89,9 @@ function printAgentsBlockNote(): void {
     // reported, but it shouldn't take down a check about commits.
     note = `couldn't read AGENTS.md to compare its block version: ${(err as Error).message}`;
   }
-  if (note) process.stderr.write(`agent-commit: note: ${note}\n`);
+  // The version comes from AGENTS.md, which arrives with any cloned repo,
+  // and the marker regex accepts any non-space characters, escapes included.
+  if (note) process.stderr.write(`agent-commit: note: ${sanitizeForTerminal(note)}\n`);
 }
 
 // Read at runtime rather than importing the JSON module directly: this file
