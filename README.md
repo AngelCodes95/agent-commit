@@ -6,23 +6,7 @@
 
 ![agent-commit: the 5 Ws, commits written by agents, for agents.](./agent-commit-diagram.png)
 
-A git commit convention for preserving the context agents need to understand software history.
-
-One line of human-readable summary, for you, if you're glancing. Everything after it is written the way an agent actually wants to read it.
-
-Status: the format is stable and works today with plain git, no tool required to read it back (see `SPEC.md`). The CLI (`cli/`) is published to npm (`npm install -g agent-commit`, or `npx agent-commit`) and fully working: filtering, querying, and a setup command, backed by a real test suite, see "What the CLI does today" below. The one thing genuinely not built is meaning-based search, see "What's not built."
-
-## The problem
-
-An agent staring at one confusing line runs `git blame`, lands on the commit that wrote it, and needs to know why, right then, not by reading the five commits around it for context. Today that commit's message is the only clue: the context the agent that wrote it had on hand at the time, often lost or compacted away by the time anyone looks again. When the message doesn't carry it, the agent is guessing, or re-deriving that context from a diff that only shows what changed, never why. That guess doesn't get cheaper with repetition: two agents (or the same one twice) can land on the identical commit and walk away with different conclusions about it.
-
-That one-commit, blame-time lookup is the case agent-commit is actually built for. The broader case, an agent reconstructing intent across a longer stretch of history, benefits too, but it's the secondary win, not the reason this exists.
-
-agent-commit fixes the part of that problem a commit message can actually fix: it gives an agent a predictable place to write down what it already knows, so the next agent doesn't have to re-derive it. When that context is present, it should be enough by itself to tell whether a change is relevant to the task at hand, without opening the diff. When it's absent, that's meaningful too, it means the summary line alone was judged sufficient.
-
-## The format
-
-A normal commit subject, exactly as you'd already write one, followed by a body if you'd already write one, and then, when there's more to say, one line of structured data as the very last part of the message:
+A git commit convention that gives agents a predictable place to write down why a change was made, so the next agent that lands on it through `git blame` doesn't have to guess.
 
 ```
 refactor(events): switch from polling to webhooks
@@ -30,54 +14,82 @@ refactor(events): switch from polling to webhooks
 Agent-Context: {"why":"polling caused high load and delayed updates; webhooks via the provider's event API fixed both, rejected increasing the poll interval since it still added meaningful latency","refs":["INFRA-441"]}
 ```
 
-To a human running `git log` without knowing anything about this convention, that's just a commit with an extra trailer, no different in kind from `Co-Authored-By:`:
+A normal subject and body for people, then one optional line of JSON for agents. Writing it needs nothing installed, and reading it needs only git. The format is specified in [`SPEC.md`](./SPEC.md) (currently version 0.3); the optional CLI is on npm as `agent-commit`.
+
+## The problem
+
+An agent looking at a confusing line runs `git blame`, lands on the commit that wrote it, and needs to know why. The diff shows what changed, never why. The context the original agent had, an alternative it tried and rejected or a constraint it worked around, is gone once its session ends. So the next agent guesses, and two agents can guess differently about the same commit.
+
+agent-commit fixes the part of that a commit message can fix. The agent writing the commit already has the context, so it writes it down where the next agent knows to look. When the trailer is there, it should be enough to tell whether a change matters to the task at hand without opening the diff. When it's absent, the subject line was judged sufficient.
+
+## The format
+
+To someone running `git log` who has never heard of this, it's a commit with one extra trailer, the same kind of line as `Co-authored-by:`. Because it's the last line of the message, git's own trailer parser extracts it:
 
 ```
-commit 9f2a1c4e...
-Author: <you>
-Date:   <when>
-
-    refactor(events): switch from polling to webhooks
-
-    Agent-Context: {"why":"polling caused high load and delayed updates; webhooks via the provider's event API fixed both, rejected increasing the poll interval since it still added meaningful latency","refs":["INFRA-441"]}
+git log -1 --format='%(trailers:key=Agent-Context,valueonly)'
 ```
 
-One long line, indented like the rest of the message, easy to skip past if you don't care and easy to grep for if you do. To an agent, it's the one thing a diff can't show: an alternative that was tried and rejected, and why.
+Fields, all optional: `why` (reasoning the subject and body don't carry), `touches` (paths affected), `refs` (ticket IDs), and `breaking` (only ever `true`). The bar for anything in the trailer is information the subject and diff don't already carry, and a `why` is never invented to fill the field: an absent one is honest, a fabricated one looks just as authoritative.
 
-That's the bar for what belongs in the trailer: information the subject and diff genuinely don't carry. Full spec, field list, and what it deliberately leaves out: [`SPEC.md`](./SPEC.md).
+Like [Conventional Commits](https://www.conventionalcommits.org/), it's a convention on top of plain git. Unlike Conventional Commits, nothing enforces it, on purpose; see `SPEC.md` for that tradeoff.
 
-This is the same idea as [Conventional Commits](https://www.conventionalcommits.org/) and uses the same mechanism git's own `Co-Authored-By:` trailer already relies on: plain git, no new file format, readable with `git log` on any machine that has git installed and nothing else. Unlike Conventional Commits, nothing here is enforced by a linter; see `SPEC.md` for what that tradeoff actually means.
+## Why structured, and not just better prose?
 
-## Why not just write better prose?
+Prose is fine for a person skimming ten commits. It breaks down when an agent has to filter hundreds: every reader reinterprets it, and nothing marks where the reasoning is. A few fixed keys mean the same thing every time and can be queried directly. The tradeoff is that nothing forces them to be there.
 
-Prose is exactly what agents already do for free, and it's genuinely fine for a human skimming ten commits. It stops working the moment a reader has to search or filter across hundreds of them, because prose has to be re-read and re-interpreted every time, by every reader, and different readers (or the same reader on different days) can come away with different conclusions. A few consistent, structured keys don't have that problem: when they're there, they mean the same thing every time. The tradeoff, stated plainly: nothing forces them to be there. See `SPEC.md` for why that's a deliberate choice and not an oversight.
+`why` is the field that compounds. The reasoning behind a rejected alternative is exactly what no diff, ticket, or PR comment reliably keeps, so the longer a repo uses this, the more its history is worth.
 
-`why` in particular tends to accumulate into a kind of institutional memory that survives team and agent turnover. The reasoning behind a rejected alternative is exactly what no diff, ticket, or PR comment reliably keeps around, and it's the one field here that actually compounds over time, the longer a repo uses this, the more valuable its history gets.
+## How it compares
 
-## What the CLI does today
+Several projects put agent context into git. They differ mostly in where the data lives and what question it answers.
 
-Reading a single repo's history back already works today with plain git, no tool required (see `SPEC.md`, "Reading it back"). The CLI in this repo (`cli/`, published to npm) adds structured filtering on top: `agent-commit log --breaking`, `--grep` (case-insensitive substring match against `why`), `--refs` (exact match against an entry in `refs`, so it's only as reliable as the canonical form guidance in `SPEC.md`; a repo that mixes `INFRA-441` and `#441` for the same ticket will find neither with a query for the other, silently, no error), `--touches` (path match against `touches` on whole segments, in both directions: `--touches src/auth` finds commits listing `src/auth`, `src/auth/session.ts`, or the broader `src`, never `src/authz`), `--since`/`--until`, `agent-commit show <ref>` for a single commit, both with a pretty-printed default view and a `--json` mode for machine consumption. Every result carries its commit hash (`hash` and `shortHash` in `--json`, the short hash leading each entry in pretty output), so anything found can be handed straight to `git show`. `agent-commit blame <file> [-L <start>[,<end>]]` is the blame-time lookup described under "The problem" in one step: it runs `git blame` on those lines and prints the `Agent-Context` of each commit responsible, with the line ranges each one owns. No `--type` filter, on purpose, `type` isn't a field this format uses (see SPEC.md). `agent-commit check` reports, read-only, whether recent commits on the current branch have a usable `Agent-Context` trailer, distinguishing a trailer that was never written from one that exists in the message but wasn't recognized as a trailer (`MISPLACED`, see SPEC.md's squash-merge section for why that happens), useful right after a squash-merge to confirm the merge commit actually got one. It also notes on stderr when the repo's `AGENTS.md` block is out of date, without changing its exit code. `agent-commit merge-draft <range>` deterministically unions a branch's `touches`/`refs`/`breaking` and lists per-commit `why` candidates for a squash-merge trailer. `agent-commit init` writes the `AGENTS.md` block (see "How to use it" below) instead of an agent hand-transcribing it. `agent-commit --version` prints the installed version. Try it now with no install: `npx agent-commit log`. Building from source instead: `cd cli && npm install && npm run build && node dist/index.js log`.
+| | Where it lives | What it records | Required fields | Tool needed |
+|---|---|---|---|---|
+| **agent-commit** | One `Agent-Context:` trailer, single-line JSON | Why, paths, refs, breaking | None | No; CLI optional |
+| [Lore](https://arxiv.org/abs/2603.15566) | Several trailers (`Constraint:`, `Rejected:`, `Confidence:`, `Directive:`, `Tested:`, and more) | A decision record: constraints, rejected alternatives, confidence, risk, test coverage | None | No; CLI optional |
+| [QAC](https://github.com/hubtheocoelho/qac-spec) | Four trailers: `Agent:`, `Mode:`, `What:`, `Why:` | Which agent, whether a human approved it, the effect, the reason | All four, on every agent commit | No; optional commit-msg hook |
+| [Agent Note](https://github.com/wasabeef/AgentNote) | Git notes (`refs/notes/agentnote`) | Prompts, responses, changed files, share of AI-written lines | Recorded automatically | Yes; installs agent and git hooks |
+| [Agent Trace](https://agent-trace.dev) | Left to the implementer (files, git notes, a database) | Line-level attribution (AI, human, mixed) with a link to the conversation | Defined by its JSON schema | A spec, with a reference implementation |
+
+- **Lore** is the closest relative and came first (a March 2026 preprint): the same mechanism, git trailers, for the same goal of recording decisions. It has a richer vocabulary of separate plain-text trailers. agent-commit keeps a smaller set in one JSON line, so the whole record comes out of a single trailer lookup and parses with any JSON library. If you want fields like confidence, reversibility, or test coverage, Lore has them.
+- **QAC** answers a different question first: which agent made the commit, and whether a human approved it. Making its fields mandatory makes that answer reliable. agent-commit makes everything optional so a trailer is never padded with filler, at the cost of no guarantee one exists.
+- **Agent Note** keeps the full conversation outside the commit message, in git notes, which its hooks write and push. That's far more detail. agent-commit keeps only the distilled reason, inside the commit itself, so it travels wherever the commit does; git doesn't fetch notes on a plain clone unless configured to.
+- **Agent Trace** is about attribution, which code an AI wrote, not why. It's complementary: it records nothing in the commit message, so a repo can use both.
+
+## The CLI
+
+Optional; everything above works with plain git. Run it with `npx agent-commit <command>`, or install it with `npm install -g agent-commit`.
+
+- `log`: commits with their trailers. Filters: `--breaking`, `--grep <text>` (case-insensitive substring of `why`), `--refs <ref>` (exact entry in `refs`), `--touches <path>` (whole path segments, in both directions: `src/auth` finds `src/auth`, `src/auth/session.ts`, and `src`, never `src/authz`), `--since`, `--until`.
+- `show <ref>`: one commit's trailer.
+- `blame <file> [-L <start>[,<end>]]`: runs `git blame` and shows the trailer of each commit behind those lines. This is the lookup described under "The problem", in one step.
+- `check [--range <range>] [--count <n>]`: read-only report of which commits have a usable trailer. Tells a missing trailer (`MISS`) apart from one git didn't recognize because of where it sits (`MISPLACED`, usually after a squash-merge), and notes when this repo's `AGENTS.md` block is out of date.
+- `merge-draft <range>`: drafts a squash-merge trailer by combining a branch's `touches`, `refs`, and `breaking`, and lists each commit's `why` for you to condense.
+- `init`: writes the `AGENTS.md` block (see below).
+
+Every command takes `--json`, and results from `log`, `show`, `blame`, and `check` include the commit hash, so anything found can go straight to `git show`. `--refs` is only as reliable as the repo's consistency: a repo that mixes `INFRA-441` and `#441` for one ticket won't find one form by searching for the other. Full reference: [`cli/README.md`](./cli/README.md). To build from source: `cd cli && npm install && npm run build && node dist/index.js log`.
 
 ## What's not built
 
-Substring matching against `why` is not the same as searching by meaning. `agent-commit log --grep webhooks` finds a commit whose `why` field literally contains that text, it won't find one that means the same thing in different words, for instance a commit that described the same change as "moved off polling entirely" with the word "webhooks" never appearing at all. Real semantic search would need an embedding index or a model call at query time, which this project has deliberately kept out of the core tool so far, staying fully deterministic. That tradeoff, and whether it's worth revisiting, is an open question, not a shipped answer.
-
-The trailer itself stays compact and single-line by design, that's what makes it extractable with one plain-git command (see `SPEC.md`, "Format"). Turning that compact JSON into something pleasant to read is this tool's job, not the format's, which is exactly what the CLI's default pretty-printed output already does. Compact in, readable out, on demand.
+Search by meaning. `--grep webhooks` finds a `why` that contains that word, not one that says "moved off polling" without it. Real semantic search needs an embedding index or a model call at query time, and the tool has stayed fully deterministic so far. Whether that's worth changing is an open question.
 
 ## How to use it
 
-Tell your agent to "agent-commit" your changes. If it already knows the format (because this repo's `AGENTS.md` already has the block below, or because it's seen this convention elsewhere), it just writes commits this way going forward. If it doesn't recognize it, the expected flow is:
+Tell your agent to "agent-commit" your changes. The first time in a repo, it needs the block below in `AGENTS.md`:
 
-1. It searches for "agent-commit format."
-2. It finds this page.
-3. It adds the block below to this repo's `AGENTS.md`, creating one if it doesn't exist yet. Most agents (Cursor, OpenCode, Codex, and others) read `AGENTS.md` natively, so this one file and this one step covers most cases.
-4. If it's Claude Code specifically: it also adds a single `@AGENTS.md` line to `CLAUDE.md` (creating a one-line `CLAUDE.md` if none exists yet). Claude Code v2.1.277 and later reads `AGENTS.md` on its own, but by default only when there's no `CLAUDE.md` (or `CLAUDE.local.md`) in the working directory or above it; once one exists, `AGENTS.md` is ignored unless imported. The import is Anthropic's documented way to use both, and it also covers older versions and sessions that read `CLAUDE.md` only. Claude Code skips an `AGENTS.md` it has already loaded, so it's never read twice. A symlink (`ln -s AGENTS.md CLAUDE.md`) also works if there's no Claude-specific content to keep separate, except on Windows. See [Claude Code's memory docs](https://code.claude.com/docs/en/memory).
-5. It commits that setup change on its own, separately from whatever the user actually asked it to commit, since it's a one-time repo setup step, not part of the requested change. If anything about the repo's commit conventions or the user's own instructions makes an unprompted commit inappropriate, it asks first instead.
-6. It writes the requested commit: a normal `git commit`, nothing installed, nothing downloaded.
+- **With the CLI:** `npx agent-commit init`. It writes the block with a version marker and adds an `@AGENTS.md` import to `CLAUDE.md` (skip that with `--no-claude-code`). It won't overwrite an existing commit-message convention or an existing block unless you pass `--force` or `--update`. When the block changes, `check` tells you, and `init --update` replaces it.
+- **By hand:** copy the block into `AGENTS.md`, creating the file if needed.
 
-The block's content is the same whichever file it ends up in; its last section only matters if your repo squash-merges or runs commitlint, so check rather than assume. Every commit after the first one in that repo is free, since the instructions are now sitting locally where the agent already looks.
+Which file your agent reads:
 
-If the `agent-commit` CLI is installed, steps 3 and 4 are `agent-commit init`: it writes the exact current block (the same one below, with a version marker so a later `init` can tell if a repo's copy has gone stale and `init --update` can replace it), links `CLAUDE.md` unless `--no-claude-code` is passed, and refuses to touch an existing, unrelated commit-message convention or clobber an already-set-up repo, both cases have to be confirmed explicitly (`--force`, `--update`). Hand-transcribing the block from this page still works and needs nothing installed; `init` just removes the chance of a transcription drifting from what's actually documented here.
+- Most agents (Cursor, Codex, OpenCode, and others) read `AGENTS.md` natively.
+- Claude Code v2.1.277 and later reads `AGENTS.md` only when there's no `CLAUDE.md` (or `CLAUDE.local.md`); once one exists, `AGENTS.md` is ignored unless imported. A single `@AGENTS.md` line in `CLAUDE.md` is Anthropic's documented way to use both, and it also covers older versions. Claude Code skips an `AGENTS.md` it has already loaded, so it's never read twice. See [Claude Code's memory docs](https://code.claude.com/docs/en/memory).
+- Gemini CLI reads `GEMINI.md` by default. Either add `AGENTS.md` to `context.fileName` in `.gemini/settings.json`, or copy the block into `GEMINI.md` too.
+
+An agent that finds this page in a repo without the block can do the same setup itself: add the block, commit that separately from the change it was asked to make (or ask first, if the repo's conventions or the user's instructions make an unprompted commit inappropriate), then write the requested commit.
+
+The block's last section only matters if your repo squash-merges or runs commitlint.
 
 ### The block to add to `AGENTS.md`
 
@@ -138,12 +150,6 @@ Full spec: https://github.com/AngelCodes95/agent-commit/blob/main/SPEC.md
 
 <!-- /agent-commit-format-version -->
 ````
-
-If you're using Gemini CLI: it reads its own `GEMINI.md` rather than `AGENTS.md` by default, and it's unconfirmed whether it falls back to `AGENTS.md` the way some others do. Add the same block to `GEMINI.md` too to be safe.
-
-## Try it
-
-Add the block above to this repo's `AGENTS.md`, or wherever your agent already looks, then tell it to "agent-commit" your next change. That's the entire setup: nothing to install, nothing to configure, no dependency this repo doesn't already have. The full spec is in [`SPEC.md`](./SPEC.md); the CLI for querying history back out is `npx agent-commit`, or `cd cli` in this repo to build it from source, see "What the CLI does today" above.
 
 ## License
 
