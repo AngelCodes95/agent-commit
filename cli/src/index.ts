@@ -5,7 +5,7 @@ import { Command } from "commander";
 import { blame, formatBlamePretty, parseLineRange } from "./blame.js";
 import { checkRecords } from "./check.js";
 import { formatJson, formatPrettyList, sanitizeForTerminal } from "./format.js";
-import { formatInitResult, needsAction, runInit } from "./init.js";
+import { agentsBlockStatus, formatAgentsBlockStatus, formatInitResult, needsAction, runInit } from "./init.js";
 import { buildMergeDraft, formatMergeDraft } from "./merge-draft.js";
 import {
   checkGitVersion,
@@ -14,6 +14,7 @@ import {
   GitVersionTooOldError,
   NotAGitRepositoryError,
   parseLog,
+  runGit,
   runGitLog,
 } from "./parser.js";
 import { queryRecords } from "./query.js";
@@ -63,6 +64,32 @@ function printWarnings(warnings: ParseWarning[]): void {
       `agent-commit: warning: ${warning.reason} on commit ${warning.shortHash} "${sanitizeForTerminal(warning.subject)}", skipped\n`,
     );
   }
+}
+
+/**
+ * Advisory only: a stale AGENTS.md block is worth mentioning, but it never
+ * changes check's exit code, which stays about the commits checked. Looks
+ * at the repository root, where init writes the block, not the current
+ * directory. A repo with no work tree (bare) has no AGENTS.md to compare,
+ * so a failed lookup is skipped, not reported.
+ */
+function printAgentsBlockNote(): void {
+  let root: string;
+  try {
+    root = runGit(["rev-parse", "--show-toplevel"]).trim();
+  } catch (err) {
+    if (err instanceof GitCommandError) return;
+    throw err;
+  }
+  let note: string | null;
+  try {
+    note = formatAgentsBlockStatus(agentsBlockStatus(root));
+  } catch (err) {
+    // An unreadable AGENTS.md (permissions, a directory by that name) is
+    // reported, but it shouldn't take down a check about commits.
+    note = `couldn't read AGENTS.md to compare its block version: ${(err as Error).message}`;
+  }
+  if (note) process.stderr.write(`agent-commit: note: ${note}\n`);
 }
 
 // Read at runtime rather than importing the JSON module directly: this file
@@ -237,6 +264,8 @@ program
           "the trailer block (see SPEC.md, \"Squash merges\").\n",
       );
     }
+
+    printAgentsBlockNote();
 
     if (results.some((r) => r.status !== "ok")) {
       process.exitCode = 1;

@@ -245,6 +245,52 @@ describe("agent-commit check, against the compiled binary", () => {
   });
 });
 
+describe("agent-commit check, AGENTS.md block version note", () => {
+  let repo: TempRepo;
+  afterEach(() => repo?.cleanup());
+
+  const block = (version: string) =>
+    `<!-- agent-commit-format-version: ${version} -->\n\n## Commit messages\n\n<!-- /agent-commit-format-version -->\n`;
+
+  it("notes an older block on stderr without changing the exit code or stdout", () => {
+    repo = new TempRepo();
+    repo.commit('fix: ok\n\nAgent-Context: {"why":"fine"}');
+    const clean = runCli(["check"], repo.dir);
+    repo.writeFile("AGENTS.md", block("0.1"));
+    const { stdout, stderr, status } = runCli(["check"], repo.dir);
+    expect(status).toBe(0);
+    expect(stdout).toBe(clean.stdout);
+    expect(stderr).toContain("format 0.1");
+    expect(stderr).toContain("agent-commit init --update");
+  });
+
+  it("finds the block at the repository root when run from a subdirectory", () => {
+    repo = new TempRepo();
+    repo.commitFile("AGENTS.md", block("0.1"), 'docs: add block\n\nAgent-Context: {"why":"fine"}');
+    execFileSync("mkdir", ["-p", join(repo.dir, "sub", "dir")]);
+    const { stderr } = runCli(["check"], join(repo.dir, "sub", "dir"));
+    expect(stderr).toContain("format 0.1");
+  });
+
+  it("says nothing about the block when it is current or absent", () => {
+    repo = new TempRepo();
+    repo.commit('fix: ok\n\nAgent-Context: {"why":"fine"}');
+    expect(runCli(["check"], repo.dir).stderr).toBe("");
+    runCli(["init", "--no-claude-code"], repo.dir);
+    expect(runCli(["check"], repo.dir).stderr).toBe("");
+  });
+
+  it("does not turn a failing check into a passing one or vice versa", () => {
+    repo = new TempRepo();
+    repo.commit("chore: no trailer");
+    repo.writeFile("AGENTS.md", block("0.1"));
+    const { stdout, stderr, status } = runCli(["check"], repo.dir);
+    expect(status).toBe(1);
+    expect(stdout).toContain("MISS");
+    expect(stderr).toContain("format 0.1");
+  });
+});
+
 describe("agent-commit merge-draft, against the compiled binary", () => {
   let repo: TempRepo;
   afterEach(() => repo?.cleanup());

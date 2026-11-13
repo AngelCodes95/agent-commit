@@ -65,6 +65,8 @@ Read-only, advisory report on whether recent commits have a usable
 trailer. Distinguishes a commit with no trailer at all from one where an
 `Agent-Context:` line exists in the message but wasn't recognized as a
 trailer (`MISPLACED`), which is what a mishandled squash-merge produces.
+Also notes on stderr when the repo's `AGENTS.md` block is older or newer
+than the one this CLI writes; that note never changes the exit code.
 Never writes anything.
 
 `agent-commit merge-draft <range> [--json]`

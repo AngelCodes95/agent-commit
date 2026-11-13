@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FORMAT_VERSION } from "../src/agentsBlock.js";
-import { formatInitResult, needsAction, runInit } from "../src/init.js";
+import {
+  agentsBlockStatus,
+  formatAgentsBlockStatus,
+  formatInitResult,
+  needsAction,
+  runInit,
+} from "../src/init.js";
 
 describe("runInit", () => {
   let dir: string;
@@ -271,5 +277,74 @@ describe("formatInitResult", () => {
     });
     expect(text.trim()).not.toBe("");
     expect(text).toContain("found a marker but not its end marker");
+  });
+});
+
+describe("agentsBlockStatus", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "agent-commit-status-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const block = (version: string) =>
+    `<!-- agent-commit-format-version: ${version} -->\nbody\n<!-- /agent-commit-format-version -->\n`;
+  const write = (text: string) => writeFileSync(join(dir, "AGENTS.md"), text);
+
+  it("is none with no AGENTS.md, or one without a block", () => {
+    expect(agentsBlockStatus(dir)).toEqual({ state: "none" });
+    write("# just notes\n");
+    expect(agentsBlockStatus(dir)).toEqual({ state: "none" });
+  });
+
+  it("is current for the block init itself writes", () => {
+    runInit(dir, { noClaudeCode: true });
+    expect(agentsBlockStatus(dir)).toEqual({ state: "current", version: FORMAT_VERSION });
+  });
+
+  it("compares versions numerically, not as strings", () => {
+    write(block("0.10"));
+    // 0.10 is newer than any 0.x below 10, though "0.10" < "0.3" as strings.
+    expect(agentsBlockStatus(dir).state).toBe("newer");
+    write(block("0.1"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "older", version: "0.1" });
+    write(block("99.0"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "newer", version: "99.0" });
+  });
+
+  it("is different, not older or newer, for a version it can't compare", () => {
+    write(block("0.3-beta"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "different", version: "0.3-beta" });
+  });
+
+  it("is ambiguous under the same marker rules init uses", () => {
+    write(block("0.1") + block("0.1"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "ambiguous" });
+  });
+
+  it("reads through a symlinked AGENTS.md, since it only reads", () => {
+    const target = join(dir, "elsewhere.md");
+    writeFileSync(target, block("0.1"));
+    symlinkSync(target, join(dir, "AGENTS.md"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "older", version: "0.1" });
+  });
+
+  it("is none for a dangling AGENTS.md symlink", () => {
+    symlinkSync(join(dir, "missing.md"), join(dir, "AGENTS.md"));
+    expect(agentsBlockStatus(dir)).toEqual({ state: "none" });
+  });
+});
+
+describe("formatAgentsBlockStatus", () => {
+  it("returns null when there is nothing to say", () => {
+    expect(formatAgentsBlockStatus({ state: "none" })).toBeNull();
+    expect(formatAgentsBlockStatus({ state: "current", version: FORMAT_VERSION })).toBeNull();
+  });
+
+  it("points an older block at init --update and a newer one at a CLI update", () => {
+    expect(formatAgentsBlockStatus({ state: "older", version: "0.1" })).toContain("agent-commit init --update");
+    expect(formatAgentsBlockStatus({ state: "newer", version: "9.9" })).toContain("Update the CLI");
   });
 });
