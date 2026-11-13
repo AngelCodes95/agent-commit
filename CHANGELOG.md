@@ -8,6 +8,16 @@ version).
 
 ## [Unreleased]
 
+### Added
+
+- `check` notes on stderr when the repository's `AGENTS.md` block is
+  older or newer than the one this CLI writes, with the fix (`init
+  --update`, or updating the CLI). It reads the block at the repository
+  root, follows a symlinked `AGENTS.md`, and stays quiet when there's no
+  block. The note never changes `check`'s exit code, which stays about
+  the commits checked. An earlier README claimed `check` already did
+  this; it didn't until now.
+
 ### Changed
 
 - The `AGENTS.md` block `init` writes is about half as long (format

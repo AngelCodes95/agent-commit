@@ -261,6 +261,69 @@ function handleClaudeMd(cwd: string, options: InitOptions): InitResult["claudeMd
   return { path, action: "updated" };
 }
 
+export type AgentsBlockStatus =
+  | { state: "none" }
+  | { state: "ambiguous" }
+  | { state: "current"; version: string }
+  | { state: "older"; version: string }
+  | { state: "newer"; version: string }
+  | { state: "different"; version: string };
+
+/** Numeric dotted versions only ("0.3", "1.10"); anything else returns null so the caller can fall back to "different". */
+function compareFormatVersions(a: string, b: string): number | null {
+  const pattern = /^\d+(\.\d+)*$/;
+  if (!pattern.test(a) || !pattern.test(b)) return null;
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return Math.sign(diff);
+  }
+  return 0;
+}
+
+/**
+ * Read-only: how the agent-commit block in `dir`/AGENTS.md compares to the
+ * one this CLI writes. Uses the same marker rules as init, so a file init
+ * would call ambiguous is reported as ambiguous here too, never guessed at.
+ * A missing file or a file with no block is "none": plenty of repos use
+ * the convention without the block, and that isn't a problem to report.
+ * Unlike init, this follows a symlinked AGENTS.md: init refuses one because
+ * it would write through it, and this only reads.
+ */
+export function agentsBlockStatus(dir: string): AgentsBlockStatus {
+  const text = readIfExists(join(dir, "AGENTS.md"));
+  if (text === null) return { state: "none" };
+  const span = findBlockSpan(text);
+  if (!span) return { state: "none" };
+  if (span.endIndex === null) return { state: "ambiguous" };
+  const cmp = compareFormatVersions(span.version, FORMAT_VERSION);
+  if (cmp === 0 || span.version === FORMAT_VERSION) return { state: "current", version: span.version };
+  if (cmp === null) return { state: "different", version: span.version };
+  return { state: cmp < 0 ? "older" : "newer", version: span.version };
+}
+
+/** A one-line, human-readable note for a block that isn't current, or null when there's nothing worth saying. */
+export function formatAgentsBlockStatus(status: AgentsBlockStatus): string | null {
+  switch (status.state) {
+    case "none":
+    case "current":
+      return null;
+    case "ambiguous":
+      return "AGENTS.md has more or fewer than one pair of agent-commit block markers; its version can't be read (see `agent-commit init`).";
+    case "older":
+      return `AGENTS.md has agent-commit block format ${status.version}; this CLI writes ${FORMAT_VERSION}. Run \`agent-commit init --update\` to replace it.`;
+    case "newer":
+      return `AGENTS.md has agent-commit block format ${status.version}, newer than this CLI's ${FORMAT_VERSION}. Update the CLI.`;
+    case "different":
+      return `AGENTS.md has agent-commit block format ${status.version}; this CLI writes ${FORMAT_VERSION}.`;
+    default: {
+      const _exhaustive: never = status;
+      throw new Error(`unhandled AgentsBlockStatus: ${JSON.stringify(_exhaustive)}`);
+    }
+  }
+}
+
 export function runInit(cwd: string, options: InitOptions = {}): InitResult {
   const agentsMd = handleAgentsMd(cwd, options);
   const claudeMd = handleClaudeMd(cwd, options);
