@@ -20,6 +20,12 @@ version).
 
 ### Changed
 
+- README rewritten to be shorter and lead with an example, with a new
+  "How it compares" section covering Lore, QAC, Agent Note, and Agent
+  Trace, each checked against its own spec or README. The CLI section is
+  now a command list instead of one paragraph. Gemini CLI guidance is
+  corrected: it reads `GEMINI.md` by default and can be pointed at
+  `AGENTS.md` with `context.fileName`, rather than "unconfirmed".
 - The `AGENTS.md` block `init` writes is about half as long (format
   version 0.3, up from 0.2). Agents load it at the start of every
   session, so every word costs every adopting repo. The rules are the
