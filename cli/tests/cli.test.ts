@@ -280,6 +280,16 @@ describe("agent-commit check, AGENTS.md block version note", () => {
     expect(runCli(["check"], repo.dir).stderr).toBe("");
   });
 
+  it("neutralizes terminal escapes smuggled into the block's version marker", () => {
+    repo = new TempRepo();
+    repo.commit('fix: ok\n\nAgent-Context: {"why":"fine"}');
+    const esc = String.fromCodePoint(0x1b);
+    repo.writeFile("AGENTS.md", block(`0.1${esc}]0;pwned${String.fromCodePoint(0x07)}`));
+    const { stderr } = runCli(["check"], repo.dir);
+    expect(stderr).toContain("agent-commit: note:");
+    expect(stderr).not.toContain(esc);
+  });
+
   it("does not turn a failing check into a passing one or vice versa", () => {
     repo = new TempRepo();
     repo.commit("chore: no trailer");
