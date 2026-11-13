@@ -8,6 +8,16 @@ version).
 
 ## [Unreleased]
 
+### Changed
+
+- The `AGENTS.md` block `init` writes is about half as long (format
+  version 0.3, up from 0.2). Agents load it at the start of every
+  session, so every word costs every adopting repo. The rules are the
+  same; the squash-merge and commitlint appendix is now a short checklist
+  pointing at SPEC.md, which already holds the full detail. The trailer
+  format itself did not change. Existing repos keep working as they are;
+  `init --update` replaces a 0.2 block with the new one.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added

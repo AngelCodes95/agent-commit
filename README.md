@@ -75,122 +75,66 @@ Tell your agent to "agent-commit" your changes. If it already knows the format (
 5. It commits that setup change on its own, separately from whatever the user actually asked it to commit, since it's a one-time repo setup step, not part of the requested change. If anything about the repo's commit conventions or the user's own instructions makes an unprompted commit inappropriate, it asks first instead.
 6. It writes the requested commit: a normal `git commit`, nothing installed, nothing downloaded.
 
-The block's core content never changes, only which file it ends up in; the appendix at the bottom of the block only applies if your repo squash-merges or runs commitlint, most do, but check rather than assume. Every commit after the first one in that repo is free, since the instructions are now sitting locally where the agent already looks.
+The block's content is the same whichever file it ends up in; its last section only matters if your repo squash-merges or runs commitlint, so check rather than assume. Every commit after the first one in that repo is free, since the instructions are now sitting locally where the agent already looks.
 
 If the `agent-commit` CLI is installed, steps 3 and 4 are `agent-commit init`: it writes the exact current block (the same one below, with a version marker so a later `init` can tell if a repo's copy has gone stale and `init --update` can replace it), links `CLAUDE.md` unless `--no-claude-code` is passed, and refuses to touch an existing, unrelated commit-message convention or clobber an already-set-up repo, both cases have to be confirmed explicitly (`--force`, `--update`). Hand-transcribing the block from this page still works and needs nothing installed; `init` just removes the chance of a transcription drifting from what's actually documented here.
 
 ### The block to add to `AGENTS.md`
 
 ````markdown
-<!-- agent-commit-format-version: 0.2 -->
+<!-- agent-commit-format-version: 0.3 -->
 
 ## Commit messages
 
-When asked to "agent-commit" changes, format the commit message as:
+When asked to "agent-commit" changes, write a normal commit message: a
+clear one-line subject, optionally a blank line and a body. Then, if
+there's context the subject and body don't already carry that would save
+the next agent from opening the diff (a rejected alternative, a
+non-obvious constraint, the real cause behind a fix), end the message
+with a single-line trailer:
 
-1. A normal, clear one-line summary, same as any good commit subject.
-2. Optionally, a blank line and a body, same as any normal commit.
-3. Optionally, if there's context the summary and body don't already carry
-   that would save the next agent from having to open the diff (a rejected
-   alternative, a non-obvious constraint, the real cause behind a fix), add
-   a single-line trailer as the very last part of the message:
+`Agent-Context: {"why":"...","touches":["src/auth"],"refs":["INFRA-441"]}`
 
-   `Agent-Context: {"why":"...","refs":["TICKET-123"]}`
+Fields, all optional:
 
-Never invent a `why` just to fill the field: only write one if there's a
-real, specific alternative, constraint, or cause behind it. If there isn't,
-omit it. An absent `why` is honest; a fabricated one looks just as
-authoritative and isn't.
+- `why`: reasoning not already in the subject or body. Never invent one
+  to fill the field. An absent `why` is honest; a fabricated one looks
+  just as authoritative and isn't.
+- `touches`: files or components affected, when the subject doesn't make
+  it obvious. Repo-relative paths with no leading `./` or `/`
+  (`src/auth`, not `auth` or `./src/auth`).
+- `refs`: the tracker's short form (`INFRA-441` or `#123`), never a full
+  URL, and one form per tracker in a repo.
+- `breaking`: only when true. Never write `false`, just omit it.
 
-Common fields: `why` (reasoning not already in the subject/body, usually
-the only field worth including), `touches` (files or components affected,
-only when it's not obvious from the subject), `breaking` (only when true;
-never write `false`, just omit it), `refs` (ticket/issue links). None are
-required. Skip the trailer entirely if the summary line already says
-everything worth saying, and never repeat the commit's type in the
-trailer if the subject already has one (e.g. `fix(auth): ...`), that
-just creates two copies that can disagree.
+Consistent `touches` and `refs` forms are what make later lookups find
+things. Skip the trailer entirely if the subject already says everything,
+and don't repeat a type the subject already has (`fix(auth): ...`): two
+copies can disagree. You already have the diff and the reasoning in
+context, so writing `why` and `touches` costs you almost nothing; include
+them whenever there's real content for them.
 
-Keep `touches` and `refs` in a consistent form, that's what makes later
-lookups actually find things: repo-relative paths with no leading `./` or
-`/` for `touches` (`src/auth`, not `auth` or `./src/auth`), and the
-tracker's own short form for `refs` (`INFRA-441` or `#123`, never a full
-URL, never both forms for the same tracker in one repo).
+Write the message with `git commit -F -` and a quoted heredoc delimiter
+(`<<'EOF'`; an unquoted one lets the shell expand `$` and backticks), or
+with `git commit -F <file>`. Never hand-escape the JSON inside `-m`.
 
-You're an agent applying this, not a human typing by hand, so your cost
-to fill in `why` and `touches` is close to zero, you already have the
-diff and the reasoning in context. Default toward including them
-whenever there's real content for them, rather than defaulting to
-omission the way a human typing by hand reasonably would.
+Before your first commit, check whether this repo:
 
-Build the message via `git commit -F -` (piped, or heredoc'd with a
-quoted delimiter like `<<'EOF'`, an unquoted one lets the shell expand
-`$` and backticks inside `why`) or `git commit -F <file>`, rather than
-hand-escaping the JSON's quotes inside a `-m` argument, since that's a
-common way to corrupt the message.
-
-If this repo squash-merges pull requests or runs commitlint, read the
-appendix below before your first commit, both change what you need to do.
+- Runs commitlint: its default 100-character `footer-max-line-length`
+  and `body-max-line-length` reject a realistic trailer. See the spec's
+  commitlint section for the fix.
+- Squash-merges pull requests: per-commit trailers don't survive a
+  squash, so whoever merges writes one condensed trailer for the whole
+  branch into the squash commit, at merge time.
+  `agent-commit merge-draft main..HEAD` drafts one from the branch's
+  trailers; you still write the `why`. The trailer must be in the
+  message's final block, directly beside any `Co-authored-by:` lines
+  with no blank line between, or git won't read it (`agent-commit check`
+  reports that as MISPLACED). `gh pr merge --squash --body` replaces the
+  whole message, so add any `Co-authored-by:` lines yourself. See the
+  spec's squash-merge section.
 
 Full spec: https://github.com/AngelCodes95/agent-commit/blob/main/SPEC.md
-
-### Appendix: squash-merges and commitlint
-
-If this repo runs commitlint, check for `footer-max-line-length` or
-`body-max-line-length` before your first commit. Their defaults (100)
-reject a realistic Agent-Context trailer outright, this isn't an edge
-case, it's the default config in exactly the repos most likely to
-already care about structured commits. See SPEC.md's commitlint
-section for the fix (relax those two rules, or exempt trailer lines).
-
-When squash-merging a pull request, write a condensed Agent-Context
-trailer into the resulting merge commit yourself, at merge time, the
-same way you would for any other commit, summarizing the branch's net
-intent rather than every individual commit on it. If the `agent-commit`
-CLI is available, get a starting point first instead of writing it
-from nothing:
-
-```
-agent-commit merge-draft main..HEAD
-```
-
-This deterministically unions `touches`/`refs`/`breaking` from the
-branch's own per-commit trailers and lists each commit's raw `why` as
-a candidate; it never writes a finished `why` for you; condense those
-candidates into one sentence yourself, then merge:
-
-```
-gh pr merge --squash --subject "..." --body 'Agent-Context: {"why":"...","refs":["#18"]}'
-```
-
-Confirmed, not just a caveat: `--body` replaces the squash commit's
-message wholesale, which drops any `Co-authored-by:` line GitHub would
-otherwise add for a multi-author PR. If there's more than one author on
-the branch, include their `Co-authored-by:` lines yourself, in the same
-`--body` string, glued to the same final block as the trailer with no
-blank line between:
-
-```
-gh pr merge --squash --subject "..." --body 'Agent-Context: {"why":"...","refs":["#18"]}
-Co-authored-by: Name <email>'
-```
-
-See SPEC.md for how this was verified.
-
-This is the one case where it matters: per-commit trailers on a source
-branch don't survive a squash-merge (see SPEC.md), so the merge commit
-is the only place a trailer can land on the branch that gets read
-later. Skipping this step means the branch's context is lost the
-moment it's squashed onto the default branch.
-
-If a human merges through GitHub's web UI instead, the same rule
-applies but the trap is different: GitHub's squash dialog often
-prefills the message with its own trailer block (usually
-Co-authored-by: lines). Agent-Context: has to join that same final
-block, with no blank line separating them, not sit above it in the
-description text, or git won't recognize it as a trailer at all. Run
-`agent-commit check` afterward; it reports this exact failure as
-MISPLACED, distinct from a trailer that was never written.
 
 <!-- /agent-commit-format-version -->
 ````

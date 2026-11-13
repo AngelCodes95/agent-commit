@@ -1,6 +1,6 @@
 # The agent-commit format
 
-Version 0.2 (draft). A specification for adding a machine-readable layer to a git commit message, without changing how commits are made or requiring any tool to write one. Versioned independently of the CLI in `cli/`, the same way Conventional Commits versions its spec separately from commitlint: this number tracks the format itself, not any particular tool's release.
+Version 0.3 (draft). 0.3 shortened the `AGENTS.md` block in `README.md`; the trailer format itself is unchanged from 0.2. A specification for adding a machine-readable layer to a git commit message, without changing how commits are made or requiring any tool to write one. Versioned independently of the CLI in `cli/`, the same way Conventional Commits versions its spec separately from commitlint: this number tracks the format and the `AGENTS.md` block that teaches it, not any particular tool's release.
 
 ## Summary
 
