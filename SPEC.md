@@ -126,6 +126,6 @@ git log --format='%s%n%(trailers:key=Agent-Context,valueonly)%x00'
 
 Split the output on the NUL byte (`\0` in most languages, `tr '\0' '\n'` at a shell); each resulting chunk is exactly one commit's summary line, optionally followed by its trailer JSON, with no risk of a commit's own content ever being mistaken for the delimiter. Verified against a real multi-commit history, including a commit whose body literally contains the old, retired string delimiter, to confirm it no longer causes a split.
 
-This already works today, verified against a real commit, not just described; see `README.md`, "What the CLI does today," for the working tool built on top of it.
+This already works today, verified against a real commit, not just described; see `README.md`, "The CLI," for the working tool built on top of it.
 
 The CLI's own internal format goes one step further than the two commands above: it also captures each commit's hash, so every result can be acted on, and its raw message body, specifically so it can tell a genuinely absent trailer apart from one that exists in the message but landed outside the position git recognizes as a trailer (see "The real trap: placement, not the merge strategy itself" above). That's a CLI capability, not a requirement of the format itself; the plain two-field commands here remain everything a reader needs with nothing installed.
